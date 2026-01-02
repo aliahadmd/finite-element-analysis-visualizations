@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convergence Plot - FEA Mesh Review</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --color-primary: #2563eb;
+            --color-secondary: #7c3aed;
+            --color-accent: #059669;
+            --color-warning: #d97706;
+            --color-error: #dc2626;
+            --color-background: #f8fafc;
+            --color-surface: #ffffff;
+            --color-text: #1e293b;
+            --color-text-light: #64748b;
+            --color-grid: #e2e8f0;
+            --color-node: #1e40af;
+            --color-element: #3b82f6;
+            --color-element-fill: rgba(59, 130, 246, 0.1);
+            --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --font-mono: 'Consolas', 'Monaco', monospace;
+            --sidebar-width: 220px;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: var(--font-family);
+            background-color: var(--color-background);
+            color: var(--color-text);
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--color-surface);
+            border-right: 1px solid var(--color-grid);
+            padding: 16px 0;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+        
+        .sidebar-header {
+            padding: 0 16px 12px;
+            border-bottom: 1px solid var(--color-grid);
+            margin-bottom: 12px;
+        }
+        
+        .sidebar-header h1 { font-size: 1rem; color: var(--color-primary); }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            text-decoration: none;
+            color: var(--color-text-light);
+            font-size: 0.8rem;
+            transition: all 0.15s;
+        }
+        
+        .nav-link:hover { background-color: var(--color-background); color: var(--color-primary); }
+        .nav-link.active { background-color: rgba(37, 99, 235, 0.1); color: var(--color-primary); font-weight: 500; }
+        
+        .nav-num {
+            width: 20px; height: 20px;
+            background-color: var(--color-grid);
+            border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.7rem; font-weight: 600;
+        }
+        
+        .nav-link:hover .nav-num, .nav-link.active .nav-num {
+            background-color: var(--color-primary); color: white;
+        }
+        
+        .main-content {
+            margin-left: var(--sidebar-width);
+            flex: 1;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        .viz-container {
+            background-color: var(--color-surface);
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .viz-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--color-grid);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(to right, var(--color-surface), var(--color-background));
+        }
+        
+        .viz-title { font-size: 1.1rem; font-weight: 600; color: var(--color-text); }
+        .viz-subtitle { font-size: 0.75rem; color: var(--color-text-light); }
+        
+        .viz-body {
+            flex: 1;
+            display: flex;
+            min-height: 0;
+        }
+        
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            min-width: 0;
+        }
+        
+        #convergence-chart {
+            max-width: 100%;
+            max-height: 100%;
+        }
+        
+        .info-panel {
+            width: 280px;
+            background-color: var(--color-background);
+            border-left: 1px solid var(--color-grid);
+            padding: 12px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+        
+        .info-section { margin-bottom: 12px; }
+        
+        .info-section-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--color-text-light);
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+        
+        .control-group { margin-bottom: 10px; }
+        .control-label { font-size: 0.75rem; color: var(--color-text); margin-bottom: 4px; display: block; }
+        
+        .btn-group { display: flex; gap: 4px; }
+        
+        .btn {
+            padding: 6px 10px;
+            font-size: 0.75rem;
+            border: 1px solid var(--color-grid);
+            background: var(--color-surface);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+            flex: 1;
+        }
+        
+        .btn:hover { border-color: var(--color-primary); }
+        .btn.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+        
+        .btn-action {
+            padding: 8px 12px;
+            font-size: 0.75rem;
+            border: none;
+            background: var(--color-primary);
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+            flex: 1;
+        }
+        
+        .btn-action:hover { background: #1d4ed8; }
+        .btn-action:disabled { background: var(--color-grid); color: var(--color-text-light); cursor: not-allowed; }
+        
+        .btn-secondary {
+            padding: 8px 12px;
+            font-size: 0.75rem;
+            border: 1px solid var(--color-grid);
+            background: var(--color-surface);
+            color: var(--color-text);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+            flex: 1;
+        }
+        
+        .btn-secondary:hover { border-color: var(--color-primary); color: var(--color-primary); }
+        
+        input[type="number"] {
+            width: 100%;
+            padding: 6px 8px;
+            font-size: 0.75rem;
+            border: 1px solid var(--color-grid);
+            border-radius: 4px;
+            font-family: var(--font-mono);
+        }
+        
+        input[type="number"]:focus {
+            outline: none;
+            border-color: var(--color-primary);
+        }
+        
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+        
+        .checkbox-row input { width: 14px; height: 14px; accent-color: var(--color-primary); }
+        .checkbox-row label { font-size: 0.75rem; color: var(--color-text); }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+        }
+        
+        .metric {
+            background: var(--color-surface);
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+        }
+        
+        .metric.full-width { grid-column: span 2; }
+        
+        .metric-value {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--color-primary);
+            font-family: var(--font-mono);
+        }
+        
+        .metric-value.accent { color: var(--color-accent); }
+        .metric-value.secondary { color: var(--color-secondary); }
+        
+        .metric-label {
+            font-size: 0.65rem;
+            color: var(--color-text-light);
+            text-transform: uppercase;
+        }
+        
+        .btn-reset {
+            width: 100%;
+            padding: 8px;
+            background: var(--color-primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            margin-top: 8px;
+        }
+        
+        .btn-reset:hover { background: #1d4ed8; }
+        
+        .description-box {
+            background: var(--color-surface);
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 0.72rem;
+            line-height: 1.5;
+            color: var(--color-text);
+        }
+        
+        .description-box p { margin-bottom: 6px; }
+        .description-box p:last-child { margin-bottom: 0; }
+        
+        .input-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .input-group { flex: 1; }
+        
+        .input-group label {
+            display: block;
+            font-size: 0.7rem;
+            color: var(--color-text-light);
+            margin-bottom: 4px;
+        }
+        
+        .color-legend {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-top: 8px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.7rem;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 3px;
+            border-radius: 1px;
+        }
+        
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        
+        .equation-box {
+            background: var(--color-surface);
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+            font-size: 0.85rem;
+            margin-top: 8px;
+        }
+        
+        @media (max-width: 900px) {
+            .sidebar { display: none; }
+            .main-content { margin-left: 0; }
+        }
+        
+        /* Callout notification */
+        .callout {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(30, 41, 59, 0.95);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.3s ease;
+            max-width: 400px;
+            text-align: center;
+        }
+        
+        .callout.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+        
+        .callout.info { border-left: 4px solid var(--color-primary); }
+        .callout.success { border-left: 4px solid var(--color-accent); }
+        .callout.warning { border-left: 4px solid var(--color-warning); }
+        
+        @media (max-width: 700px) {
+            .viz-body { flex-direction: column; }
+            .info-panel { width: 100%; border-left: none; border-top: 1px solid var(--color-grid); }
+        }
+    </style>
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header"><h1>FEA Mesh Review</h1></div>
+        <a href="index.html" class="nav-link"><span class="nav-num">⌂</span> Home</a>
+        <a href="01-domain-discretization.html" class="nav-link"><span class="nav-num">1</span> Domain Discretization</a>
+        <a href="02-shape-functions.html" class="nav-link"><span class="nav-num">2</span> Shape Functions</a>
+        <a href="03-mesh-types-comparison.html" class="nav-link"><span class="nav-num">3</span> Mesh Types</a>
+        <a href="04-h-refinement.html" class="nav-link"><span class="nav-num">4</span> h-Refinement</a>
+        <a href="05-p-refinement.html" class="nav-link"><span class="nav-num">5</span> p-Refinement</a>
+        <a href="06-convergence-plot.html" class="nav-link active"><span class="nav-num">6</span> Convergence</a>
+        <a href="07-element-quality.html" class="nav-link"><span class="nav-num">7</span> Element Quality</a>
+    </nav>
+    
+    <main class="main-content">
+        <div class="viz-container">
+            <div class="viz-header">
+                <div>
+                    <div class="viz-title">Mesh Convergence Study</div>
+                    <div class="viz-subtitle">Section 6 · Error vs. mesh size on log-log scale</div>
+                </div>
+            </div>
+            
+            <div class="viz-body">
+                <div class="canvas-container">
+                    <canvas id="convergence-chart"></canvas>
+                </div>
+                
+                <div class="info-panel">
+                    <div class="info-section">
+                        <div class="info-section-title">Description</div>
+                        <div class="description-box">
+                            <p><strong>Mesh convergence</strong> shows how the numerical error decreases as the mesh is refined. On a log-log plot, the slope indicates the convergence rate.</p>
+                            <p>The theoretical rate depends on element type and polynomial order. Linear elements typically show O(h²) convergence.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Add Data Point</div>
+                        <div class="input-row">
+                            <div class="input-group">
+                                <label for="input-h">Element Size (h)</label>
+                                <input type="number" id="input-h" step="0.001" min="0.001" placeholder="e.g., 0.1">
+                            </div>
+                            <div class="input-group">
+                                <label for="input-error">Error Norm</label>
+                                <input type="number" id="input-error" step="0.0001" min="0.0001" placeholder="e.g., 0.05">
+                            </div>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn-action" id="add-point-btn">Add Point</button>
+                            <button class="btn-secondary" id="clear-btn">Clear All</button>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Example Data</div>
+                        <div class="btn-group">
+                            <button class="btn" id="load-linear-btn">Linear (p=1)</button>
+                            <button class="btn" id="load-quadratic-btn">Quadratic (p=2)</button>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Display Options</div>
+                        <div class="checkbox-row">
+                            <input type="checkbox" id="show-theoretical" checked>
+                            <label for="show-theoretical">Show Theoretical Slope</label>
+                        </div>
+                        <div class="checkbox-row">
+                            <input type="checkbox" id="show-regression" checked>
+                            <label for="show-regression">Show Regression Line</label>
+                        </div>
+                        <div class="checkbox-row">
+                            <input type="checkbox" id="show-richardson">
+                            <label for="show-richardson">Show Richardson Extrapolation</label>
+                        </div>
+                        <div class="control-group" style="margin-top: 8px;">
+                            <label class="control-label">Theoretical Rate: <span id="rate-value">2</span></label>
+                            <div class="btn-group">
+                                <button class="btn" data-rate="1">p=1</button>
+                                <button class="btn active" data-rate="2">p=2</button>
+                                <button class="btn" data-rate="3">p=3</button>
+                                <button class="btn" data-rate="4">p=4</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Convergence Analysis</div>
+                        <div class="metrics-grid">
+                            <div class="metric">
+                                <div class="metric-value" id="data-points">0</div>
+                                <div class="metric-label">Data Points</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-value" id="computed-rate">—</div>
+                                <div class="metric-label">Computed Rate</div>
+                            </div>
+                            <div class="metric full-width">
+                                <div class="metric-value accent" id="richardson-estimate">—</div>
+                                <div class="metric-label">Richardson Extrapolation (Exact Est.)</div>
+                            </div>
+                        </div>
+                        <div class="equation-box" id="equation-display">
+                            \( e \approx C \cdot h^p \)
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Legend</div>
+                        <div class="color-legend">
+                            <div class="legend-item">
+                                <div class="legend-dot" style="background: #2563eb;"></div>
+                                <span>Data points</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #2563eb;"></div>
+                                <span>Regression line (computed)</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #059669; border-style: dashed;"></div>
+                                <span>Theoretical slope</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-dot" style="background: #7c3aed;"></div>
+                                <span>Richardson extrapolation</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button class="btn-reset" id="reset-btn" title="Reset to default linear example data">Reset to Default</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Callout notification element -->
+        <div class="callout" id="callout"></div>
+    </main>
+
+    <script>
+        const COLORS = {
+            primary: '#2563eb',
+            secondary: '#7c3aed',
+            accent: '#059669',
+            warning: '#d97706',
+            error: '#dc2626',
+            grid: '#e2e8f0',
+            textLight: '#64748b'
+        };
+        
+        const EXAMPLE_DATA = {
+            linear: [
+                { h: 0.5, error: 0.125 },
+                { h: 0.25, error: 0.032 },
+                { h: 0.125, error: 0.0082 },
+                { h: 0.0625, error: 0.00205 },
+                { h: 0.03125, error: 0.000515 }
+            ],
+            quadratic: [
+                { h: 0.5, error: 0.031 },
+                { h: 0.25, error: 0.004 },
+                { h: 0.125, error: 0.0005 },
+                { h: 0.0625, error: 0.000063 },
+                { h: 0.03125, error: 0.0000079 }
+            ]
+        };
+        
+        class ConvergencePlot {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.dataPoints = [];
+                this.theoreticalRate = 2;
+                this.showTheoretical = true;
+                this.showRegression = true;
+                this.showRichardson = false;
+                this.chart = null;
+                this.initChart();
+                this.setupEventListeners();
+                this.loadExampleData('linear');
+            }
+            
+            initChart() {
+                const ctx = this.canvas.getContext('2d');
+                this.chart = new Chart(ctx, {
+                    type: 'scatter',
+                    data: { datasets: [] },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        aspectRatio: 1.4,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => {
+                                        const x = context.parsed.x;
+                                        const y = context.parsed.y;
+                                        return `h = ${Math.pow(10, x).toExponential(3)}, error = ${Math.pow(10, y).toExponential(3)}`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                type: 'linear',
+                                title: {
+                                    display: true,
+                                    text: 'log₁₀(h) - Element Size',
+                                    font: { size: 12, weight: 'bold' }
+                                },
+                                grid: { color: COLORS.grid },
+                                ticks: { callback: (value) => value.toFixed(1) }
+                            },
+                            y: {
+                                type: 'linear',
+                                title: {
+                                    display: true,
+                                    text: 'log₁₀(error) - Error Norm',
+                                    font: { size: 12, weight: 'bold' }
+                                },
+                                grid: { color: COLORS.grid },
+                                ticks: { callback: (value) => value.toFixed(1) }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            setupEventListeners() {
+                document.getElementById('add-point-btn').addEventListener('click', () => this.addPointFromInputs());
+                document.getElementById('input-h').addEventListener('keypress', (e) => { if (e.key === 'Enter') this.addPointFromInputs(); });
+                document.getElementById('input-error').addEventListener('keypress', (e) => { if (e.key === 'Enter') this.addPointFromInputs(); });
+                document.getElementById('clear-btn').addEventListener('click', () => this.clearData());
+                document.getElementById('load-linear-btn').addEventListener('click', () => {
+                    this.loadExampleData('linear');
+                    showCallout('Loaded linear (p=1) example: Expected convergence rate ≈ 2', 'info');
+                });
+                document.getElementById('load-quadratic-btn').addEventListener('click', () => {
+                    this.loadExampleData('quadratic');
+                    showCallout('Loaded quadratic (p=2) example: Expected convergence rate ≈ 3', 'info');
+                });
+                
+                document.getElementById('show-theoretical').addEventListener('change', (e) => {
+                    this.showTheoretical = e.target.checked;
+                    this.updateChart();
+                });
+                document.getElementById('show-regression').addEventListener('change', (e) => {
+                    this.showRegression = e.target.checked;
+                    this.updateChart();
+                });
+                document.getElementById('show-richardson').addEventListener('change', (e) => {
+                    this.showRichardson = e.target.checked;
+                    this.updateChart();
+                    if (this.showRichardson) {
+                        showCallout('Richardson extrapolation estimates the exact solution from 3+ data points', 'info');
+                    }
+                });
+                
+                document.querySelectorAll('[data-rate]').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        document.querySelectorAll('[data-rate]').forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        this.theoreticalRate = parseInt(e.target.dataset.rate);
+                        document.getElementById('rate-value').textContent = this.theoreticalRate;
+                        this.updateChart();
+                    });
+                });
+                
+                document.getElementById('reset-btn').addEventListener('click', () => this.reset());
+            }
+            
+            addPointFromInputs() {
+                const hInput = document.getElementById('input-h');
+                const errorInput = document.getElementById('input-error');
+                const h = parseFloat(hInput.value);
+                const error = parseFloat(errorInput.value);
+                
+                if (isNaN(h) || isNaN(error) || h <= 0 || error <= 0) {
+                    showCallout('Please enter valid positive numbers for both h and error', 'warning');
+                    return;
+                }
+                
+                this.addDataPoint(h, error);
+                hInput.value = '';
+                errorInput.value = '';
+                hInput.focus();
+                showCallout(`Added point: h=${h}, error=${error}`, 'success');
+            }
+            
+            addDataPoint(h, error) {
+                this.dataPoints.push({ h, error });
+                this.dataPoints.sort((a, b) => b.h - a.h);
+                this.updateChart();
+                this.updateMetrics();
+            }
+            
+            clearData() {
+                this.dataPoints = [];
+                this.updateChart();
+                this.updateMetrics();
+            }
+            
+            loadExampleData(type) {
+                this.dataPoints = [...EXAMPLE_DATA[type]];
+                this.updateChart();
+                this.updateMetrics();
+            }
+            
+            reset() {
+                this.theoreticalRate = 2;
+                this.showTheoretical = true;
+                this.showRegression = true;
+                this.showRichardson = false;
+                
+                document.getElementById('show-theoretical').checked = true;
+                document.getElementById('show-regression').checked = true;
+                document.getElementById('show-richardson').checked = false;
+                document.querySelectorAll('[data-rate]').forEach(b => b.classList.remove('active'));
+                document.querySelector('[data-rate="2"]').classList.add('active');
+                document.getElementById('rate-value').textContent = '2';
+                
+                this.loadExampleData('linear');
+            }
+            
+            computeLogLogRegression() {
+                if (this.dataPoints.length < 2) return null;
+                
+                const logData = this.dataPoints.map(p => ({
+                    x: Math.log10(p.h),
+                    y: Math.log10(p.error)
+                }));
+                
+                const n = logData.length;
+                const sumX = logData.reduce((s, p) => s + p.x, 0);
+                const sumY = logData.reduce((s, p) => s + p.y, 0);
+                const sumXY = logData.reduce((s, p) => s + p.x * p.y, 0);
+                const sumX2 = logData.reduce((s, p) => s + p.x * p.x, 0);
+                
+                const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+                const intercept = (sumY - slope * sumX) / n;
+                
+                return { slope, intercept };
+            }
+            
+            computeRichardsonExtrapolation() {
+                if (this.dataPoints.length < 3) return null;
+                
+                const sorted = [...this.dataPoints].sort((a, b) => a.h - b.h);
+                const f1 = sorted[0].error;
+                const f2 = sorted[1].error;
+                const f3 = sorted[2].error;
+                const h1 = sorted[0].h;
+                const h2 = sorted[1].h;
+                
+                const r = h2 / h1;
+                const p = Math.log((f3 - f2) / (f2 - f1)) / Math.log(r);
+                
+                if (p > 0 && isFinite(p)) {
+                    const fExact = f1 + (f1 - f2) / (Math.pow(r, p) - 1);
+                    return { estimate: fExact, order: p };
+                }
+                return null;
+            }
+
+            updateChart() {
+                const datasets = [];
+                const logPoints = this.dataPoints.map(p => ({
+                    x: Math.log10(p.h),
+                    y: Math.log10(p.error)
+                }));
+                
+                if (logPoints.length > 0) {
+                    datasets.push({
+                        label: 'Data Points',
+                        data: logPoints,
+                        backgroundColor: COLORS.primary,
+                        borderColor: COLORS.primary,
+                        pointRadius: 6,
+                        pointHoverRadius: 8,
+                        showLine: false
+                    });
+                }
+                
+                if (this.showRegression && logPoints.length >= 2) {
+                    const regression = this.computeLogLogRegression();
+                    if (regression) {
+                        const xMin = Math.min(...logPoints.map(p => p.x)) - 0.2;
+                        const xMax = Math.max(...logPoints.map(p => p.x)) + 0.2;
+                        datasets.push({
+                            label: 'Regression Line',
+                            data: [
+                                { x: xMin, y: regression.intercept + regression.slope * xMin },
+                                { x: xMax, y: regression.intercept + regression.slope * xMax }
+                            ],
+                            borderColor: COLORS.primary,
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            showLine: true,
+                            fill: false
+                        });
+                    }
+                }
+                
+                if (this.showTheoretical && logPoints.length >= 1) {
+                    const xMin = Math.min(...logPoints.map(p => p.x)) - 0.2;
+                    const xMax = Math.max(...logPoints.map(p => p.x)) + 0.2;
+                    const anchor = logPoints.reduce((a, b) => a.x > b.x ? a : b);
+                    const theoreticalIntercept = anchor.y - this.theoreticalRate * anchor.x;
+                    
+                    datasets.push({
+                        label: 'Theoretical Slope',
+                        data: [
+                            { x: xMin, y: theoreticalIntercept + this.theoreticalRate * xMin },
+                            { x: xMax, y: theoreticalIntercept + this.theoreticalRate * xMax }
+                        ],
+                        borderColor: COLORS.accent,
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        showLine: true,
+                        fill: false
+                    });
+                }
+                
+                if (this.showRichardson && this.dataPoints.length >= 3) {
+                    const richardson = this.computeRichardsonExtrapolation();
+                    if (richardson && richardson.estimate > 0) {
+                        const smallestH = Math.min(...this.dataPoints.map(p => p.h));
+                        const extrapolatedX = Math.log10(smallestH / 2);
+                        const extrapolatedY = Math.log10(richardson.estimate);
+                        
+                        datasets.push({
+                            label: 'Richardson Extrapolation',
+                            data: [{ x: extrapolatedX, y: extrapolatedY }],
+                            backgroundColor: COLORS.secondary,
+                            borderColor: COLORS.secondary,
+                            pointRadius: 8,
+                            pointStyle: 'star',
+                            showLine: false
+                        });
+                    }
+                }
+                
+                this.chart.data.datasets = datasets;
+                this.chart.update();
+            }
+            
+            updateMetrics() {
+                document.getElementById('data-points').textContent = this.dataPoints.length;
+                
+                const regression = this.computeLogLogRegression();
+                document.getElementById('computed-rate').textContent = regression ? regression.slope.toFixed(2) : '—';
+                
+                const richardson = this.computeRichardsonExtrapolation();
+                document.getElementById('richardson-estimate').textContent = 
+                    (richardson && richardson.estimate > 0) ? richardson.estimate.toExponential(3) : '—';
+                
+                this.updateEquationDisplay(regression);
+            }
+            
+            updateEquationDisplay(regression) {
+                const eqDisplay = document.getElementById('equation-display');
+                if (regression) {
+                    const C = Math.pow(10, regression.intercept);
+                    const p = regression.slope;
+                    eqDisplay.innerHTML = `\\( e \\approx ${C.toExponential(2)} \\cdot h^{${p.toFixed(2)}} \\)`;
+                } else {
+                    eqDisplay.innerHTML = `\\( e \\approx C \\cdot h^p \\)`;
+                }
+                
+                if (window.MathJax) {
+                    MathJax.typesetPromise([eqDisplay]).catch((err) => console.log('MathJax error:', err));
+                }
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            if (typeof Chart === 'undefined') {
+                document.querySelector('.canvas-container').innerHTML = 
+                    '<p style="color:#dc2626;padding:40px;">Chart.js failed to load. Please check your internet connection.</p>';
+                return;
+            }
+            new ConvergencePlot('convergence-chart');
+        });
+        
+        // Callout notification system
+        function showCallout(message, type = 'info', duration = 3000) {
+            const callout = document.getElementById('callout');
+            callout.textContent = message;
+            callout.className = 'callout ' + type + ' show';
+            setTimeout(() => {
+                callout.classList.remove('show');
+            }, duration);
+        }
+    </script>
+</body>
+</html>

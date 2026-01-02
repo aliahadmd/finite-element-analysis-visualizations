@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>h-Refinement - FEA Mesh Review</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --color-primary: #2563eb;
+            --color-secondary: #7c3aed;
+            --color-accent: #059669;
+            --color-warning: #d97706;
+            --color-error: #dc2626;
+            --color-background: #f8fafc;
+            --color-surface: #ffffff;
+            --color-text: #1e293b;
+            --color-text-light: #64748b;
+            --color-grid: #e2e8f0;
+            --color-node: #1e40af;
+            --color-element: #3b82f6;
+            --color-element-fill: rgba(59, 130, 246, 0.1);
+            --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --font-mono: 'Consolas', 'Monaco', monospace;
+            --sidebar-width: 220px;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: var(--font-family);
+            background-color: var(--color-background);
+            color: var(--color-text);
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--color-surface);
+            border-right: 1px solid var(--color-grid);
+            padding: 16px 0;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+        
+        .sidebar-header {
+            padding: 0 16px 12px;
+            border-bottom: 1px solid var(--color-grid);
+            margin-bottom: 12px;
+        }
+        
+        .sidebar-header h1 { font-size: 1rem; color: var(--color-primary); }
+        
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            text-decoration: none;
+            color: var(--color-text-light);
+            font-size: 0.8rem;
+            transition: all 0.15s;
+        }
+        
+        .nav-link:hover { background-color: var(--color-background); color: var(--color-primary); }
+        .nav-link.active { background-color: rgba(37, 99, 235, 0.1); color: var(--color-primary); font-weight: 500; }
+        
+        .nav-num {
+            width: 20px; height: 20px;
+            background-color: var(--color-grid);
+            border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.7rem; font-weight: 600;
+        }
+        
+        .nav-link:hover .nav-num, .nav-link.active .nav-num {
+            background-color: var(--color-primary); color: white;
+        }
+        
+        /* Main */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            flex: 1;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        .viz-container {
+            background-color: var(--color-surface);
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .viz-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--color-grid);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(to right, var(--color-surface), var(--color-background));
+        }
+        
+        .viz-title { font-size: 1.1rem; font-weight: 600; color: var(--color-text); }
+        .viz-subtitle { font-size: 0.75rem; color: var(--color-text-light); }
+        
+        .viz-body {
+            flex: 1;
+            display: flex;
+            min-height: 0;
+        }
+        
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            min-width: 0;
+        }
+        
+        #canvas {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 8px;
+        }
+        
+        /* Info panel */
+        .info-panel {
+            width: 260px;
+            background-color: var(--color-background);
+            border-left: 1px solid var(--color-grid);
+            padding: 12px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+        
+        .info-section { margin-bottom: 12px; }
+        
+        .info-section-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--color-text-light);
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+        
+        .control-group { margin-bottom: 10px; }
+        .control-label { font-size: 0.75rem; color: var(--color-text); margin-bottom: 4px; display: block; }
+        
+        .btn-group { display: flex; gap: 4px; }
+        
+        .btn {
+            padding: 6px 10px;
+            font-size: 0.75rem;
+            border: 1px solid var(--color-grid);
+            background: var(--color-surface);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+            flex: 1;
+        }
+        
+        .btn:hover { border-color: var(--color-primary); }
+        .btn.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+        
+        .btn-action {
+            padding: 8px 12px;
+            font-size: 0.75rem;
+            border: none;
+            background: var(--color-primary);
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+            flex: 1;
+        }
+        
+        .btn-action:hover { background: #1d4ed8; }
+        .btn-action:disabled { background: var(--color-grid); color: var(--color-text-light); cursor: not-allowed; }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: var(--color-grid);
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px; height: 14px;
+            border-radius: 50%;
+            background: var(--color-primary);
+            cursor: pointer;
+        }
+        
+        .slider-value {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: var(--color-primary);
+        }
+        
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+        
+        .checkbox-row input { width: 14px; height: 14px; accent-color: var(--color-primary); }
+        .checkbox-row label { font-size: 0.75rem; color: var(--color-text); }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+        }
+        
+        .metric {
+            background: var(--color-surface);
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+        }
+        
+        .metric-value {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--color-primary);
+            font-family: var(--font-mono);
+        }
+        
+        .metric-label {
+            font-size: 0.65rem;
+            color: var(--color-text-light);
+            text-transform: uppercase;
+        }
+        
+        .btn-reset {
+            width: 100%;
+            padding: 8px;
+            background: var(--color-primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            margin-top: 8px;
+        }
+        
+        .btn-reset:hover { background: #1d4ed8; }
+        
+        .color-legend {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-top: 8px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.7rem;
+        }
+        
+        .legend-color {
+            width: 16px;
+            height: 12px;
+            border-radius: 2px;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+        
+        .description-box {
+            background: var(--color-surface);
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 0.72rem;
+            line-height: 1.5;
+            color: var(--color-text);
+        }
+        
+        .description-box p { margin-bottom: 6px; }
+        .description-box p:last-child { margin-bottom: 0; }
+        
+        .equation-box {
+            background: var(--color-surface);
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 0.8rem;
+            text-align: center;
+        }
+        
+        .step-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            margin-bottom: 8px;
+        }
+        
+        .step-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--color-grid);
+        }
+        
+        .step-dot.active { background: var(--color-primary); }
+        .step-dot.completed { background: var(--color-accent); }
+        
+        @media (max-width: 900px) {
+            .sidebar { display: none; }
+            .main-content { margin-left: 0; }
+        }
+        
+        /* Callout notification */
+        .callout {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(30, 41, 59, 0.95);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.3s ease;
+            max-width: 400px;
+            text-align: center;
+        }
+        
+        .callout.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+        
+        .callout.info { border-left: 4px solid var(--color-primary); }
+        .callout.success { border-left: 4px solid var(--color-accent); }
+        .callout.warning { border-left: 4px solid var(--color-warning); }
+        
+        @media (max-width: 700px) {
+            .viz-body { flex-direction: column; }
+            .info-panel { width: 100%; border-left: none; border-top: 1px solid var(--color-grid); }
+        }
+    </style>
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header"><h1>FEA Mesh Review</h1></div>
+        <a href="index.html" class="nav-link"><span class="nav-num">⌂</span> Home</a>
+        <a href="01-domain-discretization.html" class="nav-link"><span class="nav-num">1</span> Domain Discretization</a>
+        <a href="02-shape-functions.html" class="nav-link"><span class="nav-num">2</span> Shape Functions</a>
+        <a href="03-mesh-types-comparison.html" class="nav-link"><span class="nav-num">3</span> Mesh Types</a>
+        <a href="04-h-refinement.html" class="nav-link active"><span class="nav-num">4</span> h-Refinement</a>
+        <a href="05-p-refinement.html" class="nav-link"><span class="nav-num">5</span> p-Refinement</a>
+        <a href="06-convergence-plot.html" class="nav-link"><span class="nav-num">6</span> Convergence</a>
+        <a href="07-element-quality.html" class="nav-link"><span class="nav-num">7</span> Element Quality</a>
+    </nav>
+    
+    <main class="main-content">
+        <div class="viz-container">
+            <div class="viz-header">
+                <div>
+                    <div class="viz-title">h-Refinement</div>
+                    <div class="viz-subtitle">Section 5 · Mesh refinement by element subdivision</div>
+                </div>
+            </div>
+            
+            <div class="viz-body">
+                <div class="canvas-container">
+                    <canvas id="canvas" width="650" height="550"></canvas>
+                </div>
+                
+                <div class="info-panel">
+                    <div class="info-section">
+                        <div class="info-section-title">Concept</div>
+                        <div class="description-box">
+                            <p><strong>h-refinement</strong> reduces element size (h) to improve accuracy. Elements near stress concentrations (like holes) have higher error and benefit most from refinement.</p>
+                            <p>The error field is based on distance from the hole center, simulating stress concentration effects.</p>
+                        </div>
+                        <div class="equation-box" style="margin-top: 8px;">
+                            \( e \propto h^{p+1} \) (error decreases with element size)
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Refinement Mode</div>
+                        <div class="btn-group" id="mode-group" title="Select the refinement strategy">
+                            <button class="btn active" data-mode="uniform" title="Subdivide all elements equally - simple but computationally expensive">Uniform</button>
+                            <button class="btn" data-mode="adaptive" title="Subdivide only high-error elements - efficient for localized features">Adaptive</button>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section" id="threshold-section" style="display: none;">
+                        <div class="info-section-title">Error Threshold</div>
+                        <div class="control-group" title="Elements with error above this threshold will be refined">
+                            <label>Refine elements with error > <span class="slider-value" id="threshold-value">0.50</span></label>
+                            <input type="range" id="threshold-slider" min="10" max="90" value="50" title="Adjust the error threshold for adaptive refinement">
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Refinement Steps</div>
+                        <div class="step-indicator" id="step-indicator" title="Current refinement level"></div>
+                        <div class="btn-group">
+                            <button class="btn-action" id="refine-btn" title="Perform one refinement step">Refine Step</button>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Display Options</div>
+                        <div class="checkbox-row">
+                            <input type="checkbox" id="show-error" checked title="Color elements by their estimated error">
+                            <label for="show-error">Show Error Colors</label>
+                        </div>
+                        <div class="checkbox-row">
+                            <input type="checkbox" id="show-nodes" title="Toggle visibility of mesh nodes">
+                            <label for="show-nodes">Show Nodes</label>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Metrics</div>
+                        <div class="metrics-grid">
+                            <div class="metric" title="Total number of elements in the mesh">
+                                <div class="metric-value" id="element-count">0</div>
+                                <div class="metric-label">Elements</div>
+                            </div>
+                            <div class="metric" title="Total number of nodes in the mesh">
+                                <div class="metric-value" id="node-count">0</div>
+                                <div class="metric-label">Nodes</div>
+                            </div>
+                            <div class="metric" title="Maximum element error in the mesh">
+                                <div class="metric-value" id="max-error">0.00</div>
+                                <div class="metric-label">Max Error</div>
+                            </div>
+                            <div class="metric" title="Average element error across all elements">
+                                <div class="metric-value" id="avg-error">0.00</div>
+                                <div class="metric-label">Avg Error</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Error Legend</div>
+                        <div class="color-legend">
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #059669;"></div>
+                                <span>Low error (< 0.3)</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #84cc16;"></div>
+                                <span>Medium-low (0.3 - 0.5)</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #eab308;"></div>
+                                <span>Medium (0.5 - 0.7)</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #f97316;"></div>
+                                <span>Medium-high (0.7 - 0.85)</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #dc2626;"></div>
+                                <span>High error (> 0.85)</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button class="btn-reset" id="reset-btn" title="Reset mesh to initial coarse state">Reset Mesh</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Callout notification element -->
+        <div class="callout" id="callout"></div>
+    </main>
+    
+    <script>
+        const COLORS = {
+            primary: '#2563eb',
+            node: '#1e40af',
+            element: '#3b82f6',
+            elementFill: 'rgba(59, 130, 246, 0.1)',
+            domainBorder: '#1e40af',
+            holeBorder: '#64748b',
+            holeFill: '#f1f5f9',
+            grid: '#e2e8f0',
+            textLight: '#64748b'
+        };
+        
+        // Error color gradient (green to red)
+        function getErrorColor(error) {
+            if (error < 0.3) return 'rgba(5, 150, 105, 0.6)';      // Green
+            if (error < 0.5) return 'rgba(132, 204, 22, 0.6)';     // Lime
+            if (error < 0.7) return 'rgba(234, 179, 8, 0.6)';      // Yellow
+            if (error < 0.85) return 'rgba(249, 115, 22, 0.6)';    // Orange
+            return 'rgba(220, 38, 38, 0.6)';                        // Red
+        }
+        
+        class Node {
+            constructor(x, y, id) {
+                this.x = x;
+                this.y = y;
+                this.id = id;
+            }
+            
+            clone(newId) {
+                return new Node(this.x, this.y, newId);
+            }
+        }
+        
+        class QuadElement {
+            constructor(nodes, id) {
+                this.nodes = nodes; // Array of 4 Node references [n0, n1, n2, n3]
+                this.id = id;
+                this.error = 0;
+            }
+            
+            getCentroid() {
+                const x = this.nodes.reduce((sum, n) => sum + n.x, 0) / 4;
+                const y = this.nodes.reduce((sum, n) => sum + n.y, 0) / 4;
+                return { x, y };
+            }
+            
+            getMidpoints() {
+                // Returns midpoints of edges [bottom, right, top, left]
+                return [
+                    { x: (this.nodes[0].x + this.nodes[1].x) / 2, y: (this.nodes[0].y + this.nodes[1].y) / 2 },
+                    { x: (this.nodes[1].x + this.nodes[2].x) / 2, y: (this.nodes[1].y + this.nodes[2].y) / 2 },
+                    { x: (this.nodes[2].x + this.nodes[3].x) / 2, y: (this.nodes[2].y + this.nodes[3].y) / 2 },
+                    { x: (this.nodes[3].x + this.nodes[0].x) / 2, y: (this.nodes[3].y + this.nodes[0].y) / 2 }
+                ];
+            }
+            
+            containsPoint(px, py) {
+                // Simple check if point is inside quad using cross products
+                const n = this.nodes;
+                let inside = true;
+                for (let i = 0; i < 4; i++) {
+                    const j = (i + 1) % 4;
+                    const cross = (n[j].x - n[i].x) * (py - n[i].y) - (n[j].y - n[i].y) * (px - n[i].x);
+                    if (cross < 0) inside = false;
+                }
+                return inside;
+            }
+        }
+        
+        class AdaptiveMesh {
+            constructor() {
+                this.nodes = [];
+                this.elements = [];
+                this.nodeMap = new Map(); // For finding existing nodes at positions
+            }
+            
+            addNode(x, y) {
+                // Check if node already exists at this position
+                const key = `${x.toFixed(4)},${y.toFixed(4)}`;
+                if (this.nodeMap.has(key)) {
+                    return this.nodeMap.get(key);
+                }
+                const node = new Node(x, y, this.nodes.length);
+                this.nodes.push(node);
+                this.nodeMap.set(key, node);
+                return node;
+            }
+            
+            addElement(nodeRefs) {
+                const el = new QuadElement(nodeRefs, this.elements.length);
+                this.elements.push(el);
+                return el;
+            }
+            
+            clear() {
+                this.nodes = [];
+                this.elements = [];
+                this.nodeMap.clear();
+            }
+        }
+        
+        class HRefinementDemo {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.width = this.canvas.width;
+                this.height = this.canvas.height;
+                
+                // Domain parameters
+                this.padding = 40;
+                this.plateWidth = this.width - 2 * this.padding;
+                this.plateHeight = this.height - 2 * this.padding;
+                
+                // Hole parameters (centered)
+                this.holeCenterX = this.padding + this.plateWidth / 2;
+                this.holeCenterY = this.padding + this.plateHeight / 2;
+                this.holeRadius = Math.min(this.plateWidth, this.plateHeight) * 0.15;
+                
+                // State
+                this.mesh = new AdaptiveMesh();
+                this.refinementMode = 'uniform';
+                this.errorThreshold = 0.5;
+                this.showError = true;
+                this.showNodes = false;
+                this.refinementStep = 0;
+                this.maxSteps = 5;
+                
+                this.setupEventListeners();
+                this.generateInitialMesh();
+                this.computeErrors();
+                this.updateMetrics();
+                this.updateStepIndicator();
+                this.render();
+            }
+            
+            setupEventListeners() {
+                // Mode selection
+                document.getElementById('mode-group').addEventListener('click', (e) => {
+                    if (e.target.classList.contains('btn')) {
+                        document.querySelectorAll('#mode-group .btn').forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        this.refinementMode = e.target.dataset.mode;
+                        document.getElementById('threshold-section').style.display = 
+                            this.refinementMode === 'adaptive' ? 'block' : 'none';
+                        // Show callout for mode change
+                        if (this.refinementMode === 'adaptive') {
+                            showCallout('Adaptive mode: Only high-error elements near the hole will be refined', 'info');
+                        } else {
+                            showCallout('Uniform mode: All elements subdivided equally (4× element count per step)', 'info');
+                        }
+                    }
+                });
+                
+                // Threshold slider
+                const thresholdSlider = document.getElementById('threshold-slider');
+                const thresholdValue = document.getElementById('threshold-value');
+                thresholdSlider.addEventListener('input', () => {
+                    this.errorThreshold = parseInt(thresholdSlider.value) / 100;
+                    thresholdValue.textContent = this.errorThreshold.toFixed(2);
+                });
+                
+                // Refine button
+                document.getElementById('refine-btn').addEventListener('click', () => {
+                    this.refineStep();
+                });
+                
+                // Display options
+                document.getElementById('show-error').addEventListener('change', (e) => {
+                    this.showError = e.target.checked;
+                    this.render();
+                });
+                
+                document.getElementById('show-nodes').addEventListener('change', (e) => {
+                    this.showNodes = e.target.checked;
+                    this.render();
+                });
+                
+                // Reset button
+                document.getElementById('reset-btn').addEventListener('click', () => {
+                    this.reset();
+                });
+            }
+            
+            generateInitialMesh() {
+                this.mesh.clear();
+                
+                // Create a coarse 4x4 mesh
+                const nx = 4;
+                const ny = 4;
+                const dx = this.plateWidth / nx;
+                const dy = this.plateHeight / ny;
+                
+                // Create nodes
+                const nodeGrid = [];
+                for (let j = 0; j <= ny; j++) {
+                    nodeGrid[j] = [];
+                    for (let i = 0; i <= nx; i++) {
+                        const x = this.padding + i * dx;
+                        const y = this.padding + j * dy;
+                        nodeGrid[j][i] = this.mesh.addNode(x, y);
+                    }
+                }
+                
+                // Create elements (skip elements that would be inside the hole)
+                for (let j = 0; j < ny; j++) {
+                    for (let i = 0; i < nx; i++) {
+                        const n0 = nodeGrid[j][i];
+                        const n1 = nodeGrid[j][i + 1];
+                        const n2 = nodeGrid[j + 1][i + 1];
+                        const n3 = nodeGrid[j + 1][i];
+                        
+                        // Check if element centroid is inside hole
+                        const cx = (n0.x + n1.x + n2.x + n3.x) / 4;
+                        const cy = (n0.y + n1.y + n2.y + n3.y) / 4;
+                        const dist = Math.sqrt((cx - this.holeCenterX) ** 2 + (cy - this.holeCenterY) ** 2);
+                        
+                        if (dist > this.holeRadius * 0.8) {
+                            this.mesh.addElement([n0, n1, n2, n3]);
+                        }
+                    }
+                }
+            }
+            
+            computeErrors() {
+                // Compute error for each element based on distance from hole
+                // Elements closer to the hole have higher error (stress concentration)
+                const maxDist = Math.sqrt(this.plateWidth ** 2 + this.plateHeight ** 2) / 2;
+                
+                for (const el of this.mesh.elements) {
+                    const centroid = el.getCentroid();
+                    const dist = Math.sqrt(
+                        (centroid.x - this.holeCenterX) ** 2 + 
+                        (centroid.y - this.holeCenterY) ** 2
+                    );
+                    
+                    // Error is higher near the hole
+                    // Use inverse distance with some smoothing
+                    const normalizedDist = (dist - this.holeRadius) / (maxDist - this.holeRadius);
+                    el.error = Math.max(0, Math.min(1, 1 - normalizedDist * 0.8));
+                    
+                    // Add some variation based on element size
+                    const area = this.computeElementArea(el);
+                    const avgArea = (this.plateWidth * this.plateHeight) / this.mesh.elements.length;
+                    el.error *= Math.min(1.5, Math.sqrt(area / avgArea));
+                    el.error = Math.min(1, el.error);
+                }
+            }
+            
+            computeElementArea(el) {
+                // Shoelace formula for quadrilateral
+                const n = el.nodes;
+                let area = 0;
+                for (let i = 0; i < 4; i++) {
+                    const j = (i + 1) % 4;
+                    area += n[i].x * n[j].y;
+                    area -= n[j].x * n[i].y;
+                }
+                return Math.abs(area) / 2;
+            }
+            
+            refineStep() {
+                if (this.refinementStep >= this.maxSteps) return;
+                
+                const prevElementCount = this.mesh.elements.length;
+                
+                if (this.refinementMode === 'uniform') {
+                    this.uniformRefine();
+                } else {
+                    this.adaptiveRefine();
+                }
+                
+                this.refinementStep++;
+                this.computeErrors();
+                this.updateMetrics();
+                this.updateStepIndicator();
+                this.render();
+                
+                // Show callout with refinement results
+                const newElementCount = this.mesh.elements.length;
+                const ratio = (newElementCount / prevElementCount).toFixed(1);
+                showCallout(`Refinement step ${this.refinementStep}: ${prevElementCount} → ${newElementCount} elements (${ratio}×)`, 'success');
+                
+                // Disable button if max steps reached
+                if (this.refinementStep >= this.maxSteps) {
+                    document.getElementById('refine-btn').disabled = true;
+                    showCallout('Maximum refinement level reached', 'warning', 4000);
+                }
+            }
+            
+            uniformRefine() {
+                // Subdivide all elements into 4 smaller elements
+                const oldElements = [...this.mesh.elements];
+                this.mesh.elements = [];
+                
+                for (const el of oldElements) {
+                    this.subdivideElement(el);
+                }
+            }
+            
+            adaptiveRefine() {
+                // Only subdivide elements with error above threshold
+                const oldElements = [...this.mesh.elements];
+                this.mesh.elements = [];
+                
+                for (const el of oldElements) {
+                    if (el.error > this.errorThreshold) {
+                        this.subdivideElement(el);
+                    } else {
+                        // Keep the element as is
+                        this.mesh.elements.push(el);
+                    }
+                }
+            }
+            
+            subdivideElement(el) {
+                // Subdivide a quad into 4 smaller quads
+                const n = el.nodes;
+                const mids = el.getMidpoints();
+                const centroid = el.getCentroid();
+                
+                // Create new nodes (or get existing ones)
+                const midNodes = mids.map(m => this.mesh.addNode(m.x, m.y));
+                const centerNode = this.mesh.addNode(centroid.x, centroid.y);
+                
+                // Create 4 new elements
+                // Bottom-left
+                this.mesh.addElement([n[0], midNodes[0], centerNode, midNodes[3]]);
+                // Bottom-right
+                this.mesh.addElement([midNodes[0], n[1], midNodes[1], centerNode]);
+                // Top-right
+                this.mesh.addElement([centerNode, midNodes[1], n[2], midNodes[2]]);
+                // Top-left
+                this.mesh.addElement([midNodes[3], centerNode, midNodes[2], n[3]]);
+            }
+            
+            updateMetrics() {
+                document.getElementById('element-count').textContent = this.mesh.elements.length;
+                document.getElementById('node-count').textContent = this.mesh.nodes.length;
+                
+                if (this.mesh.elements.length > 0) {
+                    const errors = this.mesh.elements.map(el => el.error);
+                    const maxError = Math.max(...errors);
+                    const avgError = errors.reduce((a, b) => a + b, 0) / errors.length;
+                    document.getElementById('max-error').textContent = maxError.toFixed(2);
+                    document.getElementById('avg-error').textContent = avgError.toFixed(2);
+                }
+            }
+            
+            updateStepIndicator() {
+                const container = document.getElementById('step-indicator');
+                container.innerHTML = '';
+                for (let i = 0; i < this.maxSteps; i++) {
+                    const dot = document.createElement('div');
+                    dot.className = 'step-dot';
+                    if (i < this.refinementStep) dot.classList.add('completed');
+                    else if (i === this.refinementStep) dot.classList.add('active');
+                    container.appendChild(dot);
+                }
+            }
+            
+            reset() {
+                this.refinementStep = 0;
+                this.generateInitialMesh();
+                this.computeErrors();
+                this.updateMetrics();
+                this.updateStepIndicator();
+                document.getElementById('refine-btn').disabled = false;
+                this.render();
+            }
+            
+            render() {
+                this.ctx.clearRect(0, 0, this.width, this.height);
+                this.drawBackgroundGrid();
+                this.drawElements();
+                this.drawHole();
+                this.drawDomainOutline();
+                if (this.showNodes) this.drawNodes();
+            }
+            
+            drawBackgroundGrid() {
+                this.ctx.strokeStyle = COLORS.grid;
+                this.ctx.lineWidth = 0.5;
+                for (let x = 0; x <= this.width; x += 50) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, 0);
+                    this.ctx.lineTo(x, this.height);
+                    this.ctx.stroke();
+                }
+                for (let y = 0; y <= this.height; y += 50) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, y);
+                    this.ctx.lineTo(this.width, y);
+                    this.ctx.stroke();
+                }
+            }
+            
+            drawDomainOutline() {
+                this.ctx.strokeStyle = COLORS.domainBorder;
+                this.ctx.lineWidth = 3;
+                this.ctx.strokeRect(this.padding, this.padding, this.plateWidth, this.plateHeight);
+            }
+            
+            drawHole() {
+                // Draw hole (white fill to cover elements)
+                this.ctx.beginPath();
+                this.ctx.arc(this.holeCenterX, this.holeCenterY, this.holeRadius, 0, Math.PI * 2);
+                this.ctx.fillStyle = COLORS.holeFill;
+                this.ctx.fill();
+                this.ctx.strokeStyle = COLORS.holeBorder;
+                this.ctx.lineWidth = 2;
+                this.ctx.stroke();
+                
+                // Add label
+                this.ctx.fillStyle = COLORS.textLight;
+                this.ctx.font = '11px sans-serif';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText('Hole', this.holeCenterX, this.holeCenterY + 4);
+            }
+            
+            drawElements() {
+                for (const el of this.mesh.elements) {
+                    const n = el.nodes;
+                    
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(n[0].x, n[0].y);
+                    this.ctx.lineTo(n[1].x, n[1].y);
+                    this.ctx.lineTo(n[2].x, n[2].y);
+                    this.ctx.lineTo(n[3].x, n[3].y);
+                    this.ctx.closePath();
+                    
+                    // Fill with error color or default
+                    if (this.showError) {
+                        this.ctx.fillStyle = getErrorColor(el.error);
+                    } else {
+                        this.ctx.fillStyle = COLORS.elementFill;
+                    }
+                    this.ctx.fill();
+                    
+                    // Draw edges
+                    this.ctx.strokeStyle = COLORS.element;
+                    this.ctx.lineWidth = 1;
+                    this.ctx.stroke();
+                }
+            }
+            
+            drawNodes() {
+                const r = Math.max(2, Math.min(4, 200 / this.mesh.nodes.length));
+                for (const n of this.mesh.nodes) {
+                    this.ctx.beginPath();
+                    this.ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+                    this.ctx.fillStyle = COLORS.node;
+                    this.ctx.fill();
+                }
+            }
+        }
+        
+        // Initialize on DOM load
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('canvas');
+            if (!canvas.getContext) {
+                document.querySelector('.canvas-container').innerHTML = 
+                    '<p style="color:#dc2626;padding:40px;">Canvas not supported</p>';
+                return;
+            }
+            new HRefinementDemo('canvas');
+        });
+        
+        // Callout notification system
+        function showCallout(message, type = 'info', duration = 3000) {
+            const callout = document.getElementById('callout');
+            callout.textContent = message;
+            callout.className = 'callout ' + type + ' show';
+            setTimeout(() => {
+                callout.classList.remove('show');
+            }, duration);
+        }
+    </script>
+</body>
+</html>

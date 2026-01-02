@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mesh Types Comparison - FEA Mesh Review</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --color-primary: #2563eb;
+            --color-secondary: #7c3aed;
+            --color-accent: #059669;
+            --color-warning: #d97706;
+            --color-error: #dc2626;
+            --color-background: #f8fafc;
+            --color-surface: #ffffff;
+            --color-text: #1e293b;
+            --color-text-light: #64748b;
+            --color-grid: #e2e8f0;
+            --color-node: #1e40af;
+            --color-element: #3b82f6;
+            --color-element-fill: rgba(59, 130, 246, 0.1);
+            --color-poor-quality: rgba(220, 38, 38, 0.3);
+            --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --font-mono: 'Consolas', 'Monaco', monospace;
+            --sidebar-width: 220px;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: var(--font-family);
+            background-color: var(--color-background);
+            color: var(--color-text);
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        /* Sidebar Navigation */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--color-surface);
+            border-right: 1px solid var(--color-grid);
+            padding: 16px 0;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+        
+        .sidebar-header {
+            padding: 0 16px 12px;
+            border-bottom: 1px solid var(--color-grid);
+            margin-bottom: 12px;
+        }
+        
+        .sidebar-header h1 { font-size: 1rem; color: var(--color-primary); }
+        
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            text-decoration: none;
+            color: var(--color-text-light);
+            font-size: 0.8rem;
+            transition: all 0.15s;
+        }
+        
+        .nav-link:hover { background-color: var(--color-background); color: var(--color-primary); }
+        .nav-link.active { background-color: rgba(37, 99, 235, 0.1); color: var(--color-primary); font-weight: 500; }
+        
+        .nav-num {
+            width: 20px; height: 20px;
+            background-color: var(--color-grid);
+            border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.7rem; font-weight: 600;
+        }
+        
+        .nav-link:hover .nav-num, .nav-link.active .nav-num {
+            background-color: var(--color-primary); color: white;
+        }
+        
+        /* Main Content */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            flex: 1;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        .viz-container {
+            background-color: var(--color-surface);
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .viz-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--color-grid);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(to right, var(--color-surface), var(--color-background));
+        }
+        
+        .viz-title { font-size: 1.1rem; font-weight: 600; color: var(--color-text); }
+        .viz-subtitle { font-size: 0.75rem; color: var(--color-text-light); }
+        
+        .viz-body {
+            flex: 1;
+            display: flex;
+            min-height: 0;
+        }
+        
+        /* Split screen canvas area */
+        .canvas-split {
+            flex: 1;
+            display: flex;
+            min-width: 0;
+            gap: 2px;
+            background-color: var(--color-grid);
+        }
+        
+        .canvas-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--color-surface);
+        }
+        
+        .canvas-panel-header {
+            padding: 8px 12px;
+            background: linear-gradient(to right, var(--color-background), var(--color-surface));
+            border-bottom: 1px solid var(--color-grid);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .panel-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--color-text);
+        }
+        
+        .panel-badge {
+            font-size: 0.65rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background-color: var(--color-primary);
+            color: white;
+        }
+        
+        .panel-badge.structured { background-color: var(--color-primary); }
+        .panel-badge.unstructured { background-color: var(--color-secondary); }
+        
+        .canvas-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px;
+        }
+        
+        .canvas-wrapper canvas {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 4px;
+        }
+        
+        .panel-metrics {
+            padding: 8px 12px;
+            background-color: var(--color-background);
+            border-top: 1px solid var(--color-grid);
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+        
+        .panel-metric {
+            text-align: center;
+        }
+        
+        .panel-metric-value {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--color-primary);
+            font-family: var(--font-mono);
+        }
+        
+        .panel-metric-value.structured { color: var(--color-primary); }
+        .panel-metric-value.unstructured { color: var(--color-secondary); }
+        .panel-metric-value.warning { color: var(--color-warning); }
+        .panel-metric-value.error { color: var(--color-error); }
+        
+        .panel-metric-label {
+            font-size: 0.6rem;
+            color: var(--color-text-light);
+            text-transform: uppercase;
+        }
+        
+        /* Info panel */
+        .info-panel {
+            width: 240px;
+            background-color: var(--color-background);
+            border-left: 1px solid var(--color-grid);
+            padding: 12px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+        
+        .info-section { margin-bottom: 12px; }
+        
+        .info-section-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--color-text-light);
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+        
+        .control-group { margin-bottom: 10px; }
+        .control-label { font-size: 0.75rem; color: var(--color-text); margin-bottom: 4px; display: block; }
+        
+        .btn-group { display: flex; gap: 4px; }
+        
+        .btn {
+            padding: 6px 10px;
+            font-size: 0.75rem;
+            border: 1px solid var(--color-grid);
+            background: var(--color-surface);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+            flex: 1;
+        }
+        
+        .btn:hover { border-color: var(--color-primary); }
+        .btn.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: var(--color-grid);
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px; height: 14px;
+            border-radius: 50%;
+            background: var(--color-primary);
+            cursor: pointer;
+        }
+        
+        .slider-value {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: var(--color-primary);
+        }
+        
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+        
+        .checkbox-row input { width: 14px; height: 14px; accent-color: var(--color-primary); }
+        .checkbox-row label { font-size: 0.75rem; color: var(--color-text); }
+        
+        .description-box {
+            background: var(--color-surface);
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 0.7rem;
+            line-height: 1.5;
+            color: var(--color-text-light);
+        }
+        
+        .description-box p { margin-bottom: 6px; }
+        .description-box p:last-child { margin-bottom: 0; }
+        
+        .equation-box {
+            background: var(--color-surface);
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 0.75rem;
+            text-align: center;
+        }
+        
+        .comparison-table {
+            width: 100%;
+            font-size: 0.7rem;
+            border-collapse: collapse;
+        }
+        
+        .comparison-table th,
+        .comparison-table td {
+            padding: 4px 6px;
+            text-align: left;
+            border-bottom: 1px solid var(--color-grid);
+        }
+        
+        .comparison-table th {
+            font-weight: 600;
+            color: var(--color-text-light);
+            font-size: 0.65rem;
+            text-transform: uppercase;
+        }
+        
+        .comparison-table .structured { color: var(--color-primary); }
+        .comparison-table .unstructured { color: var(--color-secondary); }
+        
+        .btn-reset {
+            width: 100%;
+            padding: 8px;
+            background: var(--color-primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            margin-top: 8px;
+        }
+        
+        .btn-reset:hover { background: #1d4ed8; }
+        
+        @media (max-width: 900px) {
+            .sidebar { display: none; }
+            .main-content { margin-left: 0; }
+        }
+        
+        /* Callout notification */
+        .callout {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(30, 41, 59, 0.95);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.3s ease;
+            max-width: 400px;
+            text-align: center;
+        }
+        
+        .callout.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+        
+        .callout.info { border-left: 4px solid var(--color-primary); }
+        .callout.success { border-left: 4px solid var(--color-accent); }
+        .callout.warning { border-left: 4px solid var(--color-warning); }
+        
+        @media (max-width: 800px) {
+            .viz-body { flex-direction: column; }
+            .canvas-split { flex-direction: column; }
+            .info-panel { width: 100%; border-left: none; border-top: 1px solid var(--color-grid); }
+        }
+    </style>
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header"><h1>FEA Mesh Review</h1></div>
+        <a href="index.html" class="nav-link"><span class="nav-num">⌂</span> Home</a>
+        <a href="01-domain-discretization.html" class="nav-link"><span class="nav-num">1</span> Domain Discretization</a>
+        <a href="02-shape-functions.html" class="nav-link"><span class="nav-num">2</span> Shape Functions</a>
+        <a href="03-mesh-types-comparison.html" class="nav-link active"><span class="nav-num">3</span> Mesh Types</a>
+        <a href="04-h-refinement.html" class="nav-link"><span class="nav-num">4</span> h-Refinement</a>
+        <a href="05-p-refinement.html" class="nav-link"><span class="nav-num">5</span> p-Refinement</a>
+        <a href="06-convergence-plot.html" class="nav-link"><span class="nav-num">6</span> Convergence</a>
+        <a href="07-element-quality.html" class="nav-link"><span class="nav-num">7</span> Element Quality</a>
+    </nav>
+    
+    <main class="main-content">
+        <div class="viz-container">
+            <div class="viz-header">
+                <div>
+                    <div class="viz-title">Mesh Types Comparison</div>
+                    <div class="viz-subtitle">Section 4 · Structured vs Unstructured mesh generation</div>
+                </div>
+            </div>
+            
+            <div class="viz-body">
+                <div class="canvas-split">
+                    <!-- Structured Mesh Panel -->
+                    <div class="canvas-panel">
+                        <div class="canvas-panel-header">
+                            <span class="panel-title">Structured Mesh</span>
+                            <span class="panel-badge structured">Regular Grid</span>
+                        </div>
+                        <div class="canvas-wrapper">
+                            <canvas id="canvas-structured" width="400" height="350"></canvas>
+                        </div>
+                        <div class="panel-metrics">
+                            <div class="panel-metric">
+                                <div class="panel-metric-value structured" id="struct-elements">0</div>
+                                <div class="panel-metric-label">Elements</div>
+                            </div>
+                            <div class="panel-metric">
+                                <div class="panel-metric-value structured" id="struct-nodes">0</div>
+                                <div class="panel-metric-label">Nodes</div>
+                            </div>
+                            <div class="panel-metric">
+                                <div class="panel-metric-value structured" id="struct-aspect">1.00</div>
+                                <div class="panel-metric-label">Avg AR</div>
+                            </div>
+                            <div class="panel-metric">
+                                <div class="panel-metric-value structured" id="struct-quality">100%</div>
+                                <div class="panel-metric-label">Quality</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Unstructured Mesh Panel -->
+                    <div class="canvas-panel">
+                        <div class="canvas-panel-header">
+                            <span class="panel-title">Unstructured Mesh</span>
+                            <span class="panel-badge unstructured">Triangulation</span>
+                        </div>
+                        <div class="canvas-wrapper">
+                            <canvas id="canvas-unstructured" width="400" height="350"></canvas>
+                        </div>
+                        <div class="panel-metrics">
+                            <div class="panel-metric">
+                                <div class="panel-metric-value unstructured" id="unstruct-elements">0</div>
+                                <div class="panel-metric-label">Elements</div>
+                            </div>
+                            <div class="panel-metric">
+                                <div class="panel-metric-value unstructured" id="unstruct-nodes">0</div>
+                                <div class="panel-metric-label">Nodes</div>
+                            </div>
+                            <div class="panel-metric">
+                                <div class="panel-metric-value unstructured" id="unstruct-aspect">1.00</div>
+                                <div class="panel-metric-label">Avg AR</div>
+                            </div>
+                            <div class="panel-metric">
+                                <div class="panel-metric-value unstructured" id="unstruct-quality">100%</div>
+                                <div class="panel-metric-label">Quality</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="info-panel">
+                    <div class="info-section">
+                        <div class="info-section-title">Geometry</div>
+                        <div class="btn-group" id="geometry-group" title="Select the domain geometry to mesh">
+                            <button class="btn active" data-geometry="square-hole" title="Square plate with circular hole - tests mesh adaptation around curved boundaries">□ with Hole</button>
+                            <button class="btn" data-geometry="l-bracket" title="L-shaped bracket - tests mesh handling of re-entrant corners">L-Bracket</button>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Mesh Density</div>
+                        <div class="control-group" title="Control the mesh refinement level (synchronized for both mesh types)">
+                            <label><span class="slider-value" id="density-value">6</span> elements/edge</label>
+                            <input type="range" id="density-slider" min="3" max="15" value="6" title="Drag to adjust mesh density">
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Display Options</div>
+                        <div class="checkbox-row">
+                            <input type="checkbox" id="show-nodes" checked title="Toggle visibility of mesh nodes">
+                            <label for="show-nodes">Show Nodes</label>
+                        </div>
+                        <div class="checkbox-row">
+                            <input type="checkbox" id="highlight-poor" title="Highlight elements with aspect ratio > 3">
+                            <label for="highlight-poor">Highlight Poor Elements</label>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Comparison</div>
+                        <table class="comparison-table">
+                            <tr>
+                                <th>Property</th>
+                                <th class="structured">Struct.</th>
+                                <th class="unstructured">Unstruct.</th>
+                            </tr>
+                            <tr>
+                                <td>Regularity</td>
+                                <td class="structured">High</td>
+                                <td class="unstructured">Variable</td>
+                            </tr>
+                            <tr>
+                                <td>Complex Geom.</td>
+                                <td class="structured">Limited</td>
+                                <td class="unstructured">Flexible</td>
+                            </tr>
+                            <tr>
+                                <td>Solver Efficiency</td>
+                                <td class="structured">Better</td>
+                                <td class="unstructured">Good</td>
+                            </tr>
+                            <tr>
+                                <td>Automation</td>
+                                <td class="structured">Manual</td>
+                                <td class="unstructured">Auto</td>
+                            </tr>
+                        </table>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">About</div>
+                        <div class="description-box">
+                            <p><strong>Structured meshes</strong> use regular grid patterns with predictable connectivity. Ideal for simple geometries with high solver efficiency.</p>
+                            <p><strong>Unstructured meshes</strong> use triangulation to adapt to complex boundaries. More flexible but with variable element quality.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Key Equations</div>
+                        <div class="equation-box">
+                            <p style="margin-bottom: 4px;">Aspect Ratio: \( AR = \frac{L_{max}}{L_{min}} \)</p>
+                            <p style="font-size: 0.65rem; color: var(--color-text-light);">Optimal: AR ≈ 1, Acceptable: AR &lt; 3</p>
+                        </div>
+                    </div>
+                    
+                    <button class="btn-reset" id="reset-btn" title="Reset all settings to default values">Reset</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Callout notification element -->
+        <div class="callout" id="callout"></div>
+    </main>
+    
+    <script>
+        const COLORS = {
+            primary: '#2563eb',
+            secondary: '#7c3aed',
+            accent: '#059669',
+            warning: '#d97706',
+            error: '#dc2626',
+            node: '#1e40af',
+            element: '#3b82f6',
+            elementFill: 'rgba(59, 130, 246, 0.1)',
+            elementFillUnstruct: 'rgba(124, 58, 237, 0.1)',
+            elementUnstruct: '#7c3aed',
+            poorQuality: 'rgba(220, 38, 38, 0.3)',
+            grid: '#e2e8f0',
+            hole: '#f8fafc',
+            holeBorder: '#64748b'
+        };
+        
+        // Node class
+        class Node {
+            constructor(x, y, id) {
+                this.x = x;
+                this.y = y;
+                this.id = id;
+            }
+        }
+        
+        // Element class
+        class Element {
+            constructor(nodes, type) {
+                this.nodes = nodes;
+                this.type = type;
+            }
+            
+            getCentroid() {
+                const cx = this.nodes.reduce((s, n) => s + n.x, 0) / this.nodes.length;
+                const cy = this.nodes.reduce((s, n) => s + n.y, 0) / this.nodes.length;
+                return { x: cx, y: cy };
+            }
+            
+            getEdgeLengths() {
+                const lengths = [];
+                for (let i = 0; i < this.nodes.length; i++) {
+                    const n1 = this.nodes[i];
+                    const n2 = this.nodes[(i + 1) % this.nodes.length];
+                    lengths.push(Math.sqrt((n2.x - n1.x) ** 2 + (n2.y - n1.y) ** 2));
+                }
+                return lengths;
+            }
+            
+            getAspectRatio() {
+                const edges = this.getEdgeLengths();
+                return Math.max(...edges) / Math.min(...edges);
+            }
+            
+            getArea() {
+                // Shoelace formula
+                let area = 0;
+                for (let i = 0; i < this.nodes.length; i++) {
+                    const j = (i + 1) % this.nodes.length;
+                    area += this.nodes[i].x * this.nodes[j].y;
+                    area -= this.nodes[j].x * this.nodes[i].y;
+                }
+                return Math.abs(area) / 2;
+            }
+        }
+        
+        // Mesh class
+        class Mesh {
+            constructor() {
+                this.nodes = [];
+                this.elements = [];
+            }
+            
+            addNode(x, y) {
+                const n = new Node(x, y, this.nodes.length);
+                this.nodes.push(n);
+                return n;
+            }
+            
+            addElement(nodeRefs, type) {
+                const e = new Element(nodeRefs, type);
+                this.elements.push(e);
+                return e;
+            }
+            
+            clear() {
+                this.nodes = [];
+                this.elements = [];
+            }
+            
+            getAverageAspectRatio() {
+                if (this.elements.length === 0) return 1;
+                const sum = this.elements.reduce((s, e) => s + e.getAspectRatio(), 0);
+                return sum / this.elements.length;
+            }
+            
+            getQualityPercentage(threshold = 3) {
+                if (this.elements.length === 0) return 100;
+                const good = this.elements.filter(e => e.getAspectRatio() <= threshold).length;
+                return Math.round((good / this.elements.length) * 100);
+            }
+        }
+        
+        // Structured Mesh Generator
+        class StructuredMeshGenerator {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.width = canvas.width;
+                this.height = canvas.height;
+                this.padding = 30;
+                this.mesh = new Mesh();
+            }
+            
+            generate(geometry, density) {
+                this.mesh.clear();
+                
+                const domainW = this.width - 2 * this.padding;
+                const domainH = this.height - 2 * this.padding;
+                const nx = density;
+                const ny = Math.round(density * (domainH / domainW));
+                const dx = domainW / nx;
+                const dy = domainH / ny;
+                
+                // Create node grid
+                const nodeGrid = [];
+                for (let j = 0; j <= ny; j++) {
+                    nodeGrid[j] = [];
+                    for (let i = 0; i <= nx; i++) {
+                        const x = this.padding + i * dx;
+                        const y = this.padding + j * dy;
+                        
+                        if (this.isInsideDomain(x, y, geometry, domainW, domainH)) {
+                            nodeGrid[j][i] = this.mesh.addNode(x, y);
+                        } else {
+                            nodeGrid[j][i] = null;
+                        }
+                    }
+                }
+                
+                // Create quad elements
+                for (let j = 0; j < ny; j++) {
+                    for (let i = 0; i < nx; i++) {
+                        const n00 = nodeGrid[j][i];
+                        const n10 = nodeGrid[j][i + 1];
+                        const n11 = nodeGrid[j + 1][i + 1];
+                        const n01 = nodeGrid[j + 1][i];
+                        
+                        if (n00 && n10 && n11 && n01) {
+                            const cx = (n00.x + n10.x + n11.x + n01.x) / 4;
+                            const cy = (n00.y + n10.y + n11.y + n01.y) / 4;
+                            
+                            if (this.isInsideDomain(cx, cy, geometry, domainW, domainH)) {
+                                this.mesh.addElement([n00, n10, n11, n01], 'quad');
+                            }
+                        }
+                    }
+                }
+                
+                return this.mesh;
+            }
+            
+            isInsideDomain(x, y, geometry, domainW, domainH) {
+                const relX = x - this.padding;
+                const relY = y - this.padding;
+                
+                if (geometry === 'square-hole') {
+                    // Check if inside hole (center circle)
+                    const cx = domainW / 2;
+                    const cy = domainH / 2;
+                    const r = Math.min(domainW, domainH) * 0.15;
+                    const dist = Math.sqrt((relX - cx) ** 2 + (relY - cy) ** 2);
+                    return dist > r;
+                } else if (geometry === 'l-bracket') {
+                    // L-bracket: exclude top-right quadrant
+                    const midX = domainW / 2;
+                    const midY = domainH / 2;
+                    return !(relX > midX && relY < midY);
+                }
+                return true;
+            }
+            
+            render(showNodes, highlightPoor) {
+                this.ctx.clearRect(0, 0, this.width, this.height);
+                this.drawBackground();
+                this.drawElements(highlightPoor);
+                if (showNodes) this.drawNodes();
+            }
+            
+            drawBackground() {
+                // Light grid
+                this.ctx.strokeStyle = COLORS.grid;
+                this.ctx.lineWidth = 0.5;
+                for (let x = 0; x <= this.width; x += 40) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, 0);
+                    this.ctx.lineTo(x, this.height);
+                    this.ctx.stroke();
+                }
+                for (let y = 0; y <= this.height; y += 40) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, y);
+                    this.ctx.lineTo(this.width, y);
+                    this.ctx.stroke();
+                }
+            }
+            
+            drawElements(highlightPoor) {
+                for (const el of this.mesh.elements) {
+                    const ar = el.getAspectRatio();
+                    const isPoor = ar > 3;
+                    
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(el.nodes[0].x, el.nodes[0].y);
+                    for (let i = 1; i < el.nodes.length; i++) {
+                        this.ctx.lineTo(el.nodes[i].x, el.nodes[i].y);
+                    }
+                    this.ctx.closePath();
+                    
+                    if (highlightPoor && isPoor) {
+                        this.ctx.fillStyle = COLORS.poorQuality;
+                    } else {
+                        this.ctx.fillStyle = COLORS.elementFill;
+                    }
+                    this.ctx.fill();
+                    
+                    this.ctx.strokeStyle = COLORS.element;
+                    this.ctx.lineWidth = 1;
+                    this.ctx.stroke();
+                }
+            }
+            
+            drawNodes() {
+                const r = Math.max(2, Math.min(4, 20 / Math.sqrt(this.mesh.nodes.length)));
+                for (const n of this.mesh.nodes) {
+                    this.ctx.beginPath();
+                    this.ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+                    this.ctx.fillStyle = COLORS.node;
+                    this.ctx.fill();
+                }
+            }
+        }
+        
+        // Unstructured Mesh Generator (Delaunay-like triangulation)
+        class UnstructuredMeshGenerator {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.width = canvas.width;
+                this.height = canvas.height;
+                this.padding = 30;
+                this.mesh = new Mesh();
+            }
+            
+            generate(geometry, density) {
+                this.mesh.clear();
+                this.geometry = geometry;
+                
+                const domainW = this.width - 2 * this.padding;
+                const domainH = this.height - 2 * this.padding;
+                
+                // Generate points
+                const points = this.generatePoints(geometry, density, domainW, domainH);
+                
+                // Create nodes
+                const nodes = points.map(p => this.mesh.addNode(p.x, p.y));
+                
+                // Simple Delaunay triangulation using Bowyer-Watson algorithm
+                this.triangulate(nodes, domainW, domainH, geometry);
+                
+                return this.mesh;
+            }
+            
+            generatePoints(geometry, density, domainW, domainH) {
+                const points = [];
+                const spacing = Math.min(domainW, domainH) / density;
+                
+                // Add boundary points
+                // Top and bottom edges
+                for (let x = 0; x <= domainW; x += spacing) {
+                    if (geometry !== 'l-bracket' || x <= domainW / 2) {
+                        points.push({ x: this.padding + x, y: this.padding });
+                    }
+                    points.push({ x: this.padding + x, y: this.padding + domainH });
+                }
+                
+                // Left and right edges
+                for (let y = spacing; y < domainH; y += spacing) {
+                    points.push({ x: this.padding, y: this.padding + y });
+                    if (geometry !== 'l-bracket' || y >= domainH / 2) {
+                        points.push({ x: this.padding + domainW, y: this.padding + y });
+                    }
+                }
+                
+                // L-bracket internal corner
+                if (geometry === 'l-bracket') {
+                    const midX = this.padding + domainW / 2;
+                    const midY = this.padding + domainH / 2;
+                    for (let x = midX; x <= this.padding + domainW; x += spacing) {
+                        points.push({ x, y: midY });
+                    }
+                    for (let y = this.padding; y <= midY; y += spacing) {
+                        points.push({ x: midX, y });
+                    }
+                }
+                
+                // Hole boundary (if square-hole)
+                if (geometry === 'square-hole') {
+                    const cx = this.padding + domainW / 2;
+                    const cy = this.padding + domainH / 2;
+                    const r = Math.min(domainW, domainH) * 0.15;
+                    const nHole = Math.max(8, Math.round(density * 1.5));
+                    for (let i = 0; i < nHole; i++) {
+                        const angle = (2 * Math.PI * i) / nHole;
+                        points.push({
+                            x: cx + r * Math.cos(angle),
+                            y: cy + r * Math.sin(angle)
+                        });
+                    }
+                }
+                
+                // Interior points with jitter
+                const interiorSpacing = spacing * 1.2;
+                for (let y = this.padding + interiorSpacing; y < this.padding + domainH - interiorSpacing / 2; y += interiorSpacing) {
+                    for (let x = this.padding + interiorSpacing; x < this.padding + domainW - interiorSpacing / 2; x += interiorSpacing) {
+                        // Add small random jitter
+                        const jx = x + (Math.random() - 0.5) * spacing * 0.3;
+                        const jy = y + (Math.random() - 0.5) * spacing * 0.3;
+                        
+                        if (this.isInsideDomain(jx, jy, geometry, domainW, domainH)) {
+                            points.push({ x: jx, y: jy });
+                        }
+                    }
+                }
+                
+                return points;
+            }
+            
+            isInsideDomain(x, y, geometry, domainW, domainH) {
+                const relX = x - this.padding;
+                const relY = y - this.padding;
+                
+                // Check bounds
+                if (relX < 0 || relX > domainW || relY < 0 || relY > domainH) return false;
+                
+                if (geometry === 'square-hole') {
+                    const cx = domainW / 2;
+                    const cy = domainH / 2;
+                    const r = Math.min(domainW, domainH) * 0.15;
+                    const dist = Math.sqrt((relX - cx) ** 2 + (relY - cy) ** 2);
+                    return dist > r * 0.9; // Slightly smaller to avoid boundary issues
+                } else if (geometry === 'l-bracket') {
+                    const midX = domainW / 2;
+                    const midY = domainH / 2;
+                    return !(relX > midX && relY < midY);
+                }
+                return true;
+            }
+            
+            triangulate(nodes, domainW, domainH, geometry) {
+                // Simple ear-clipping style triangulation
+                // For better results, we use a constrained approach
+                
+                if (nodes.length < 3) return;
+                
+                // Create super triangle
+                const margin = Math.max(domainW, domainH) * 2;
+                const superNodes = [
+                    { x: -margin, y: -margin, id: -1 },
+                    { x: this.width + margin, y: -margin, id: -2 },
+                    { x: this.width / 2, y: this.height + margin, id: -3 }
+                ];
+                
+                let triangles = [superNodes];
+                
+                // Add each point
+                for (const node of nodes) {
+                    const badTriangles = [];
+                    
+                    // Find triangles whose circumcircle contains the point
+                    for (const tri of triangles) {
+                        if (this.inCircumcircle(node, tri)) {
+                            badTriangles.push(tri);
+                        }
+                    }
+                    
+                    // Find boundary polygon
+                    const polygon = [];
+                    for (const tri of badTriangles) {
+                        for (let i = 0; i < 3; i++) {
+                            const edge = [tri[i], tri[(i + 1) % 3]];
+                            let shared = false;
+                            for (const other of badTriangles) {
+                                if (other === tri) continue;
+                                for (let j = 0; j < 3; j++) {
+                                    const otherEdge = [other[j], other[(j + 1) % 3]];
+                                    if ((edge[0] === otherEdge[0] && edge[1] === otherEdge[1]) ||
+                                        (edge[0] === otherEdge[1] && edge[1] === otherEdge[0])) {
+                                        shared = true;
+                                        break;
+                                    }
+                                }
+                                if (shared) break;
+                            }
+                            if (!shared) polygon.push(edge);
+                        }
+                    }
+                    
+                    // Remove bad triangles
+                    triangles = triangles.filter(t => !badTriangles.includes(t));
+                    
+                    // Create new triangles
+                    for (const edge of polygon) {
+                        triangles.push([edge[0], edge[1], node]);
+                    }
+                }
+                
+                // Remove triangles with super triangle vertices
+                triangles = triangles.filter(tri => {
+                    return !tri.some(n => n.id < 0);
+                });
+                
+                // Filter triangles outside domain or inside hole
+                for (const tri of triangles) {
+                    const cx = (tri[0].x + tri[1].x + tri[2].x) / 3;
+                    const cy = (tri[0].y + tri[1].y + tri[2].y) / 3;
+                    
+                    if (this.isInsideDomain(cx, cy, geometry, domainW, domainH)) {
+                        this.mesh.addElement(tri, 'triangle');
+                    }
+                }
+            }
+            
+            inCircumcircle(point, triangle) {
+                const [a, b, c] = triangle;
+                
+                const ax = a.x - point.x;
+                const ay = a.y - point.y;
+                const bx = b.x - point.x;
+                const by = b.y - point.y;
+                const cx = c.x - point.x;
+                const cy = c.y - point.y;
+                
+                const det = (ax * ax + ay * ay) * (bx * cy - cx * by) -
+                           (bx * bx + by * by) * (ax * cy - cx * ay) +
+                           (cx * cx + cy * cy) * (ax * by - bx * ay);
+                
+                // Check orientation
+                const orient = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+                
+                return orient > 0 ? det > 0 : det < 0;
+            }
+            
+            render(showNodes, highlightPoor) {
+                this.ctx.clearRect(0, 0, this.width, this.height);
+                this.drawBackground();
+                this.drawElements(highlightPoor);
+                if (showNodes) this.drawNodes();
+            }
+            
+            drawBackground() {
+                this.ctx.strokeStyle = COLORS.grid;
+                this.ctx.lineWidth = 0.5;
+                for (let x = 0; x <= this.width; x += 40) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, 0);
+                    this.ctx.lineTo(x, this.height);
+                    this.ctx.stroke();
+                }
+                for (let y = 0; y <= this.height; y += 40) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, y);
+                    this.ctx.lineTo(this.width, y);
+                    this.ctx.stroke();
+                }
+            }
+            
+            drawElements(highlightPoor) {
+                for (const el of this.mesh.elements) {
+                    const ar = el.getAspectRatio();
+                    const isPoor = ar > 3;
+                    
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(el.nodes[0].x, el.nodes[0].y);
+                    for (let i = 1; i < el.nodes.length; i++) {
+                        this.ctx.lineTo(el.nodes[i].x, el.nodes[i].y);
+                    }
+                    this.ctx.closePath();
+                    
+                    if (highlightPoor && isPoor) {
+                        this.ctx.fillStyle = COLORS.poorQuality;
+                    } else {
+                        this.ctx.fillStyle = COLORS.elementFillUnstruct;
+                    }
+                    this.ctx.fill();
+                    
+                    this.ctx.strokeStyle = COLORS.elementUnstruct;
+                    this.ctx.lineWidth = 1;
+                    this.ctx.stroke();
+                }
+            }
+            
+            drawNodes() {
+                const r = Math.max(2, Math.min(4, 20 / Math.sqrt(this.mesh.nodes.length)));
+                for (const n of this.mesh.nodes) {
+                    this.ctx.beginPath();
+                    this.ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+                    this.ctx.fillStyle = COLORS.secondary;
+                    this.ctx.fill();
+                }
+            }
+        }
+
+        
+        // Main comparison controller
+        class MeshComparison {
+            constructor() {
+                this.structuredGen = new StructuredMeshGenerator(document.getElementById('canvas-structured'));
+                this.unstructuredGen = new UnstructuredMeshGenerator(document.getElementById('canvas-unstructured'));
+                
+                this.geometry = 'square-hole';
+                this.density = 6;
+                this.showNodes = true;
+                this.highlightPoor = false;
+                
+                this.setupEventListeners();
+                this.generateMeshes();
+                this.render();
+            }
+            
+            setupEventListeners() {
+                // Geometry selection
+                document.getElementById('geometry-group').addEventListener('click', (e) => {
+                    if (e.target.classList.contains('btn')) {
+                        document.querySelectorAll('#geometry-group .btn').forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        this.geometry = e.target.dataset.geometry;
+                        this.generateMeshes();
+                        this.render();
+                        // Show callout for geometry change
+                        if (this.geometry === 'l-bracket') {
+                            showCallout('L-bracket: Notice how unstructured mesh adapts better to the corner', 'info');
+                        } else {
+                            showCallout('Square with hole: Structured mesh struggles with curved boundary', 'info');
+                        }
+                    }
+                });
+                
+                // Density slider
+                const slider = document.getElementById('density-slider');
+                const sliderVal = document.getElementById('density-value');
+                slider.addEventListener('input', () => {
+                    this.density = parseInt(slider.value);
+                    sliderVal.textContent = this.density;
+                    this.generateMeshes();
+                    this.render();
+                });
+                
+                // Show nodes
+                document.getElementById('show-nodes').addEventListener('change', (e) => {
+                    this.showNodes = e.target.checked;
+                    this.render();
+                });
+                
+                // Highlight poor elements
+                document.getElementById('highlight-poor').addEventListener('change', (e) => {
+                    this.highlightPoor = e.target.checked;
+                    this.render();
+                    if (this.highlightPoor) {
+                        showCallout('Red elements have aspect ratio > 3 (poor quality)', 'warning');
+                    }
+                });
+                
+                // Reset button
+                document.getElementById('reset-btn').addEventListener('click', () => this.reset());
+            }
+            
+            generateMeshes() {
+                this.structuredGen.generate(this.geometry, this.density);
+                this.unstructuredGen.generate(this.geometry, this.density);
+                this.updateMetrics();
+            }
+            
+            render() {
+                this.structuredGen.render(this.showNodes, this.highlightPoor);
+                this.unstructuredGen.render(this.showNodes, this.highlightPoor);
+            }
+            
+            updateMetrics() {
+                const structMesh = this.structuredGen.mesh;
+                const unstructMesh = this.unstructuredGen.mesh;
+                
+                // Structured metrics
+                document.getElementById('struct-elements').textContent = structMesh.elements.length;
+                document.getElementById('struct-nodes').textContent = structMesh.nodes.length;
+                document.getElementById('struct-aspect').textContent = structMesh.getAverageAspectRatio().toFixed(2);
+                const structQuality = structMesh.getQualityPercentage();
+                document.getElementById('struct-quality').textContent = structQuality + '%';
+                this.setQualityColor('struct-quality', structQuality);
+                
+                // Unstructured metrics
+                document.getElementById('unstruct-elements').textContent = unstructMesh.elements.length;
+                document.getElementById('unstruct-nodes').textContent = unstructMesh.nodes.length;
+                document.getElementById('unstruct-aspect').textContent = unstructMesh.getAverageAspectRatio().toFixed(2);
+                const unstructQuality = unstructMesh.getQualityPercentage();
+                document.getElementById('unstruct-quality').textContent = unstructQuality + '%';
+                this.setQualityColor('unstruct-quality', unstructQuality);
+            }
+            
+            setQualityColor(elementId, quality) {
+                const el = document.getElementById(elementId);
+                el.classList.remove('warning', 'error');
+                if (quality < 70) {
+                    el.classList.add('error');
+                } else if (quality < 90) {
+                    el.classList.add('warning');
+                }
+            }
+            
+            reset() {
+                this.geometry = 'square-hole';
+                this.density = 6;
+                this.showNodes = true;
+                this.highlightPoor = false;
+                
+                document.querySelectorAll('#geometry-group .btn').forEach(b => 
+                    b.classList.toggle('active', b.dataset.geometry === 'square-hole'));
+                document.getElementById('density-slider').value = 6;
+                document.getElementById('density-value').textContent = '6';
+                document.getElementById('show-nodes').checked = true;
+                document.getElementById('highlight-poor').checked = false;
+                
+                this.generateMeshes();
+                this.render();
+            }
+        }
+        
+        // Initialize on DOM load
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas1 = document.getElementById('canvas-structured');
+            const canvas2 = document.getElementById('canvas-unstructured');
+            
+            if (!canvas1.getContext || !canvas2.getContext) {
+                document.querySelector('.canvas-split').innerHTML = 
+                    '<p style="color:#dc2626;padding:40px;text-align:center;">Canvas not supported</p>';
+                return;
+            }
+            
+            new MeshComparison();
+        });
+        
+        // Callout notification system
+        function showCallout(message, type = 'info', duration = 3000) {
+            const callout = document.getElementById('callout');
+            callout.textContent = message;
+            callout.className = 'callout ' + type + ' show';
+            setTimeout(() => {
+                callout.classList.remove('show');
+            }, duration);
+        }
+    </script>
+</body>
+</html>

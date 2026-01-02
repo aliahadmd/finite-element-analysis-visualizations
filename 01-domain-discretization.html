@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Domain Discretization - FEA Mesh Review</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --color-primary: #2563eb;
+            --color-secondary: #7c3aed;
+            --color-accent: #059669;
+            --color-background: #f8fafc;
+            --color-surface: #ffffff;
+            --color-text: #1e293b;
+            --color-text-light: #64748b;
+            --color-grid: #e2e8f0;
+            --color-node: #1e40af;
+            --color-element: #3b82f6;
+            --color-element-fill: rgba(59, 130, 246, 0.1);
+            --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --font-mono: 'Consolas', 'Monaco', monospace;
+            --sidebar-width: 220px;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: var(--font-family);
+            background-color: var(--color-background);
+            color: var(--color-text);
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--color-surface);
+            border-right: 1px solid var(--color-grid);
+            padding: 16px 0;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+        
+        .sidebar-header {
+            padding: 0 16px 12px;
+            border-bottom: 1px solid var(--color-grid);
+            margin-bottom: 12px;
+        }
+        
+        .sidebar-header h1 { font-size: 1rem; color: var(--color-primary); }
+        
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            text-decoration: none;
+            color: var(--color-text-light);
+            font-size: 0.8rem;
+            transition: all 0.15s;
+        }
+        
+        .nav-link:hover { background-color: var(--color-background); color: var(--color-primary); }
+        .nav-link.active { background-color: rgba(37, 99, 235, 0.1); color: var(--color-primary); font-weight: 500; }
+        
+        .nav-num {
+            width: 20px; height: 20px;
+            background-color: var(--color-grid);
+            border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.7rem; font-weight: 600;
+        }
+        
+        .nav-link:hover .nav-num, .nav-link.active .nav-num {
+            background-color: var(--color-primary); color: white;
+        }
+        
+        /* Main */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            flex: 1;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        .viz-container {
+            background-color: var(--color-surface);
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .viz-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--color-grid);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(to right, var(--color-surface), var(--color-background));
+        }
+        
+        .viz-title { font-size: 1.1rem; font-weight: 600; color: var(--color-text); }
+        .viz-subtitle { font-size: 0.75rem; color: var(--color-text-light); }
+        
+        .viz-body {
+            flex: 1;
+            display: flex;
+            min-height: 0;
+        }
+        
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            min-width: 0;
+        }
+        
+        #canvas {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 8px;
+        }
+        
+        /* Info panel */
+        .info-panel {
+            width: 240px;
+            background-color: var(--color-background);
+            border-left: 1px solid var(--color-grid);
+            padding: 12px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+        
+        .info-section { margin-bottom: 12px; }
+        
+        .info-section-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--color-text-light);
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+        
+        .control-group { margin-bottom: 10px; }
+        .control-label { font-size: 0.75rem; color: var(--color-text); margin-bottom: 4px; display: block; }
+        
+        .btn-group { display: flex; gap: 4px; }
+        
+        .btn {
+            padding: 6px 10px;
+            font-size: 0.75rem;
+            border: 1px solid var(--color-grid);
+            background: var(--color-surface);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+            flex: 1;
+        }
+        
+        .btn:hover { border-color: var(--color-primary); }
+        .btn.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: var(--color-grid);
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px; height: 14px;
+            border-radius: 50%;
+            background: var(--color-primary);
+            cursor: pointer;
+        }
+        
+        .slider-value {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: var(--color-primary);
+        }
+        
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+        
+        .checkbox-row input { width: 14px; height: 14px; accent-color: var(--color-primary); }
+        .checkbox-row label { font-size: 0.75rem; color: var(--color-text); }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+        
+        .metric {
+            background: var(--color-surface);
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+        }
+        
+        .metric-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--color-primary);
+            font-family: var(--font-mono);
+        }
+        
+        .metric-label {
+            font-size: 0.65rem;
+            color: var(--color-text-light);
+            text-transform: uppercase;
+        }
+        
+        .btn-reset {
+            width: 100%;
+            padding: 8px;
+            background: var(--color-primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            margin-top: 8px;
+        }
+        
+        .btn-reset:hover { background: #1d4ed8; }
+        
+        .description-box {
+            background: var(--color-surface);
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 0.72rem;
+            line-height: 1.5;
+            color: var(--color-text);
+        }
+        
+        .description-box p { margin-bottom: 6px; }
+        .description-box p:last-child { margin-bottom: 0; }
+        
+        .equation-box {
+            background: var(--color-surface);
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 0.85rem;
+            text-align: center;
+        }
+        
+        /* Tooltips */
+        [title] {
+            position: relative;
+            cursor: help;
+        }
+        
+        /* Callout notification */
+        .callout {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(30, 41, 59, 0.95);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.3s ease;
+            max-width: 400px;
+            text-align: center;
+        }
+        
+        .callout.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+        
+        .callout.info { border-left: 4px solid var(--color-primary); }
+        .callout.success { border-left: 4px solid var(--color-accent); }
+        .callout.warning { border-left: 4px solid #d97706; }
+        
+        @media (max-width: 900px) {
+            .sidebar { display: none; }
+            .main-content { margin-left: 0; }
+        }
+        
+        @media (max-width: 700px) {
+            .viz-body { flex-direction: column; }
+            .info-panel { width: 100%; border-left: none; border-top: 1px solid var(--color-grid); }
+        }
+    </style>
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header"><h1>FEA Mesh Review</h1></div>
+        <a href="index.html" class="nav-link"><span class="nav-num">⌂</span> Home</a>
+        <a href="01-domain-discretization.html" class="nav-link active"><span class="nav-num">1</span> Domain Discretization</a>
+        <a href="02-shape-functions.html" class="nav-link"><span class="nav-num">2</span> Shape Functions</a>
+        <a href="03-mesh-types-comparison.html" class="nav-link"><span class="nav-num">3</span> Mesh Types</a>
+        <a href="04-h-refinement.html" class="nav-link"><span class="nav-num">4</span> h-Refinement</a>
+        <a href="05-p-refinement.html" class="nav-link"><span class="nav-num">5</span> p-Refinement</a>
+        <a href="06-convergence-plot.html" class="nav-link"><span class="nav-num">6</span> Convergence</a>
+        <a href="07-element-quality.html" class="nav-link"><span class="nav-num">7</span> Element Quality</a>
+    </nav>
+    
+    <main class="main-content">
+        <div class="viz-container">
+            <div class="viz-header">
+                <div>
+                    <div class="viz-title">Domain Discretization</div>
+                    <div class="viz-subtitle">Section 3 · Dividing continuous domains into finite elements</div>
+                </div>
+            </div>
+            
+            <div class="viz-body">
+                <div class="canvas-container">
+                    <canvas id="canvas" width="700" height="500"></canvas>
+                </div>
+                
+                <div class="info-panel">
+                    <div class="info-section">
+                        <div class="info-section-title">Domain Shape</div>
+                        <div class="btn-group" id="domain-shape-group" title="Select the geometry of the domain to be meshed">
+                            <button class="btn active" data-shape="rectangle" title="Simple rectangular domain - ideal for regular problems">Rectangle</button>
+                            <button class="btn" data-shape="lshape" title="L-shaped domain with re-entrant corner - creates stress singularity">L-Shape</button>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Element Type</div>
+                        <div class="btn-group" id="element-type-group" title="Choose the type of finite elements">
+                            <button class="btn active" data-type="quad" title="4-node quadrilateral elements (Q4) - efficient for regular geometries">Quad</button>
+                            <button class="btn" data-type="triangle" title="3-node triangular elements (T3) - flexible for complex shapes">Triangle</button>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Mesh Density</div>
+                        <div class="control-group" title="Control the number of elements along each edge - higher values give more accurate results but increase computation">
+                            <label><span class="slider-value" id="density-value">5</span> elements/edge</label>
+                            <input type="range" id="density-slider" min="2" max="20" value="5" title="Drag to adjust mesh refinement level - watch how element count grows quadratically">
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Display</div>
+                        <div class="checkbox-row">
+                            <input type="checkbox" id="show-nodes" checked title="Toggle visibility of mesh nodes - nodes are where DOFs are defined">
+                            <label for="show-nodes">Show Nodes</label>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Metrics</div>
+                        <div class="metrics-grid">
+                            <div class="metric" title="Total number of finite elements in the mesh - determines computational cost">
+                                <div class="metric-value" id="element-count">0</div>
+                                <div class="metric-label">Elements</div>
+                            </div>
+                            <div class="metric" title="Total number of nodes (vertices) in the mesh - each node has displacement DOFs">
+                                <div class="metric-value" id="node-count">0</div>
+                                <div class="metric-label">Nodes</div>
+                            </div>
+                            <div class="metric" title="Degrees of Freedom = Nodes × 2 (for 2D displacement) - size of the system matrix">
+                                <div class="metric-value" id="dof-count">0</div>
+                                <div class="metric-label">DOF</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Concept</div>
+                        <div class="description-box">
+                            <p><strong>Domain discretization</strong> is the process of dividing a continuous domain Ω into a finite number of non-overlapping elements.</p>
+                            <p>The mesh approximates the geometry and enables numerical solution of PDEs using the finite element method.</p>
+                            <p><em>Key insight:</em> Finer meshes give more accurate results but require more computation. The DOF count determines the size of the linear system to solve.</p>
+                        </div>
+                        <div class="equation-box" style="margin-top: 8px;" title="The domain Ω is approximated by the union of all element domains Ωᵉ">
+                            \( \Omega \approx \bigcup_{e=1}^{n_e} \Omega^e \)
+                        </div>
+                    </div>
+                    
+                    <button class="btn-reset" id="reset-btn" title="Reset all settings to default values">Reset</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Callout notification element -->
+        <div class="callout" id="callout"></div>
+    </main>
+    
+    <script>
+        const COLORS = {
+            primary: '#2563eb',
+            node: '#1e40af',
+            element: '#3b82f6',
+            elementFill: 'rgba(59, 130, 246, 0.1)',
+            domainBorder: '#1e40af',
+            grid: '#e2e8f0',
+            textLight: '#64748b'
+        };
+        
+        class Node {
+            constructor(x, y, id) { this.x = x; this.y = y; this.id = id; }
+        }
+        
+        class Element {
+            constructor(nodes, type) { this.nodes = nodes; this.type = type; }
+        }
+        
+        class Mesh {
+            constructor() { this.nodes = []; this.elements = []; }
+            addNode(x, y) { const n = new Node(x, y, this.nodes.length); this.nodes.push(n); return n; }
+            addElement(nodeRefs, type) { const e = new Element(nodeRefs, type); this.elements.push(e); return e; }
+            clear() { this.nodes = []; this.elements = []; }
+        }
+        
+        class DomainDiscretization {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.width = this.canvas.width;
+                this.height = this.canvas.height;
+                
+                this.domainShape = 'rectangle';
+                this.elementType = 'quad';
+                this.density = 5;
+                this.showNodes = true;
+                
+                this.padding = 50;
+                this.domainWidth = this.width - 2 * this.padding;
+                this.domainHeight = this.height - 2 * this.padding;
+                
+                this.mesh = new Mesh();
+                
+                this.setupEventListeners();
+                this.generateMesh();
+                this.render();
+            }
+            
+            setupEventListeners() {
+                document.getElementById('domain-shape-group').addEventListener('click', (e) => {
+                    if (e.target.classList.contains('btn')) {
+                        document.querySelectorAll('#domain-shape-group .btn').forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        this.domainShape = e.target.dataset.shape;
+                        this.generateMesh();
+                        this.render();
+                        // Show callout for shape change
+                        if (this.domainShape === 'lshape') {
+                            showCallout('L-shape domains have re-entrant corners that create stress singularities', 'info');
+                        }
+                    }
+                });
+                
+                document.getElementById('element-type-group').addEventListener('click', (e) => {
+                    if (e.target.classList.contains('btn')) {
+                        document.querySelectorAll('#element-type-group .btn').forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        this.elementType = e.target.dataset.type;
+                        this.generateMesh();
+                        this.render();
+                        // Show callout for element type change
+                        const msg = this.elementType === 'triangle' 
+                            ? 'Triangles are more flexible for complex geometries but may need more elements'
+                            : 'Quadrilaterals are more efficient for regular domains';
+                        showCallout(msg, 'info');
+                    }
+                });
+                
+                const slider = document.getElementById('density-slider');
+                const sliderVal = document.getElementById('density-value');
+                let lastCalloutDensity = 5;
+                slider.addEventListener('input', () => {
+                    this.density = parseInt(slider.value);
+                    sliderVal.textContent = this.density;
+                    this.generateMesh();
+                    this.render();
+                    // Show callout for significant density changes
+                    if (this.density >= 15 && lastCalloutDensity < 15) {
+                        showCallout('High mesh density: DOF count grows quadratically with refinement!', 'warning');
+                        lastCalloutDensity = this.density;
+                    } else if (this.density <= 3 && lastCalloutDensity > 3) {
+                        showCallout('Very coarse mesh: may not capture solution gradients accurately', 'warning');
+                        lastCalloutDensity = this.density;
+                    }
+                });
+                
+                document.getElementById('show-nodes').addEventListener('change', (e) => {
+                    this.showNodes = e.target.checked;
+                    this.render();
+                });
+                
+                document.getElementById('reset-btn').addEventListener('click', () => this.reset());
+            }
+            
+            reset() {
+                this.domainShape = 'rectangle';
+                this.elementType = 'quad';
+                this.density = 5;
+                this.showNodes = true;
+                
+                document.querySelectorAll('#domain-shape-group .btn').forEach(b => b.classList.toggle('active', b.dataset.shape === 'rectangle'));
+                document.querySelectorAll('#element-type-group .btn').forEach(b => b.classList.toggle('active', b.dataset.type === 'quad'));
+                document.getElementById('density-slider').value = 5;
+                document.getElementById('density-value').textContent = '5';
+                document.getElementById('show-nodes').checked = true;
+                
+                this.generateMesh();
+                this.render();
+            }
+            
+            generateMesh() {
+                this.mesh.clear();
+                if (this.domainShape === 'rectangle') this.generateRectangleMesh();
+                else this.generateLShapeMesh();
+                this.updateMetrics();
+            }
+            
+            generateRectangleMesh() {
+                const nx = this.density;
+                const ny = Math.round(this.density * (this.domainHeight / this.domainWidth));
+                const dx = this.domainWidth / nx;
+                const dy = this.domainHeight / ny;
+                
+                const nodeGrid = [];
+                for (let j = 0; j <= ny; j++) {
+                    nodeGrid[j] = [];
+                    for (let i = 0; i <= nx; i++) {
+                        nodeGrid[j][i] = this.mesh.addNode(this.padding + i * dx, this.padding + j * dy);
+                    }
+                }
+                
+                for (let j = 0; j < ny; j++) {
+                    for (let i = 0; i < nx; i++) {
+                        const n00 = nodeGrid[j][i], n10 = nodeGrid[j][i+1];
+                        const n11 = nodeGrid[j+1][i+1], n01 = nodeGrid[j+1][i];
+                        
+                        if (this.elementType === 'quad') {
+                            this.mesh.addElement([n00, n10, n11, n01], 'quad');
+                        } else {
+                            this.mesh.addElement([n00, n10, n11], 'triangle');
+                            this.mesh.addElement([n00, n11, n01], 'triangle');
+                        }
+                    }
+                }
+            }
+            
+            generateLShapeMesh() {
+                const nx = this.density;
+                const ny = Math.round(this.density * (this.domainHeight / this.domainWidth));
+                const dx = this.domainWidth / nx;
+                const dy = this.domainHeight / ny;
+                const midX = Math.floor(nx / 2);
+                const midY = Math.floor(ny / 2);
+                
+                const nodeGrid = [];
+                for (let j = 0; j <= ny; j++) {
+                    nodeGrid[j] = [];
+                    for (let i = 0; i <= nx; i++) {
+                        const inExcluded = i > midX && j < midY;
+                        nodeGrid[j][i] = inExcluded ? null : this.mesh.addNode(this.padding + i * dx, this.padding + j * dy);
+                    }
+                }
+                
+                for (let j = 0; j < ny; j++) {
+                    for (let i = 0; i < nx; i++) {
+                        if (i >= midX && j < midY) continue;
+                        
+                        const n00 = nodeGrid[j][i], n10 = nodeGrid[j][i+1];
+                        const n11 = nodeGrid[j+1][i+1], n01 = nodeGrid[j+1][i];
+                        
+                        if (!n00 || !n10 || !n11 || !n01) continue;
+                        
+                        if (this.elementType === 'quad') {
+                            this.mesh.addElement([n00, n10, n11, n01], 'quad');
+                        } else {
+                            this.mesh.addElement([n00, n10, n11], 'triangle');
+                            this.mesh.addElement([n00, n11, n01], 'triangle');
+                        }
+                    }
+                }
+            }
+            
+            updateMetrics() {
+                const el = this.mesh.elements.length;
+                const nd = this.mesh.nodes.length;
+                document.getElementById('element-count').textContent = el;
+                document.getElementById('node-count').textContent = nd;
+                document.getElementById('dof-count').textContent = nd * 2;
+            }
+            
+            render() {
+                this.ctx.clearRect(0, 0, this.width, this.height);
+                this.drawBackgroundGrid();
+                this.drawDomainOutline();
+                this.drawElements();
+                if (this.showNodes) this.drawNodes();
+            }
+            
+            drawBackgroundGrid() {
+                this.ctx.strokeStyle = COLORS.grid;
+                this.ctx.lineWidth = 0.5;
+                for (let x = 0; x <= this.width; x += 50) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, 0);
+                    this.ctx.lineTo(x, this.height);
+                    this.ctx.stroke();
+                }
+                for (let y = 0; y <= this.height; y += 50) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, y);
+                    this.ctx.lineTo(this.width, y);
+                    this.ctx.stroke();
+                }
+            }
+            
+            drawDomainOutline() {
+                this.ctx.strokeStyle = COLORS.domainBorder;
+                this.ctx.lineWidth = 3;
+                
+                if (this.domainShape === 'rectangle') {
+                    this.ctx.strokeRect(this.padding, this.padding, this.domainWidth, this.domainHeight);
+                } else {
+                    const midX = this.padding + this.domainWidth / 2;
+                    const midY = this.padding + this.domainHeight / 2;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(this.padding, this.padding);
+                    this.ctx.lineTo(midX, this.padding);
+                    this.ctx.lineTo(midX, midY);
+                    this.ctx.lineTo(this.padding + this.domainWidth, midY);
+                    this.ctx.lineTo(this.padding + this.domainWidth, this.padding + this.domainHeight);
+                    this.ctx.lineTo(this.padding, this.padding + this.domainHeight);
+                    this.ctx.closePath();
+                    this.ctx.stroke();
+                }
+            }
+            
+            drawElements() {
+                for (const el of this.mesh.elements) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(el.nodes[0].x, el.nodes[0].y);
+                    for (let i = 1; i < el.nodes.length; i++) {
+                        this.ctx.lineTo(el.nodes[i].x, el.nodes[i].y);
+                    }
+                    this.ctx.closePath();
+                    this.ctx.fillStyle = COLORS.elementFill;
+                    this.ctx.fill();
+                    this.ctx.strokeStyle = COLORS.element;
+                    this.ctx.lineWidth = 1.5;
+                    this.ctx.stroke();
+                }
+            }
+            
+            drawNodes() {
+                const r = Math.max(3, Math.min(6, 30 / this.density));
+                for (const n of this.mesh.nodes) {
+                    this.ctx.beginPath();
+                    this.ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+                    this.ctx.fillStyle = COLORS.node;
+                    this.ctx.fill();
+                }
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('canvas');
+            if (!canvas.getContext) {
+                document.querySelector('.canvas-container').innerHTML = '<p style="color:#dc2626;padding:40px;">Canvas not supported</p>';
+                return;
+            }
+            new DomainDiscretization('canvas');
+        });
+        
+        // Callout notification system
+        function showCallout(message, type = 'info', duration = 3000) {
+            const callout = document.getElementById('callout');
+            callout.textContent = message;
+            callout.className = 'callout ' + type + ' show';
+            setTimeout(() => {
+                callout.classList.remove('show');
+            }, duration);
+        }
+    </script>
+</body>
+</html>

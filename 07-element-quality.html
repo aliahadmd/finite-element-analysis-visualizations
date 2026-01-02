@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Element Quality - FEA Mesh Review</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --color-primary: #2563eb;
+            --color-secondary: #7c3aed;
+            --color-accent: #059669;
+            --color-warning: #d97706;
+            --color-error: #dc2626;
+            --color-background: #f8fafc;
+            --color-surface: #ffffff;
+            --color-text: #1e293b;
+            --color-text-light: #64748b;
+            --color-grid: #e2e8f0;
+            --color-node: #1e40af;
+            --color-element: #3b82f6;
+            --color-element-fill: rgba(59, 130, 246, 0.1);
+            --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --font-mono: 'Consolas', 'Monaco', monospace;
+            --sidebar-width: 220px;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: var(--font-family);
+            background-color: var(--color-background);
+            color: var(--color-text);
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--color-surface);
+            border-right: 1px solid var(--color-grid);
+            padding: 16px 0;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+        
+        .sidebar-header {
+            padding: 0 16px 12px;
+            border-bottom: 1px solid var(--color-grid);
+            margin-bottom: 12px;
+        }
+        
+        .sidebar-header h1 { font-size: 1rem; color: var(--color-primary); }
+        
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            text-decoration: none;
+            color: var(--color-text-light);
+            font-size: 0.8rem;
+            transition: all 0.15s;
+        }
+        
+        .nav-link:hover { background-color: var(--color-background); color: var(--color-primary); }
+        .nav-link.active { background-color: rgba(37, 99, 235, 0.1); color: var(--color-primary); font-weight: 500; }
+        
+        .nav-num {
+            width: 20px; height: 20px;
+            background-color: var(--color-grid);
+            border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.7rem; font-weight: 600;
+        }
+        
+        .nav-link:hover .nav-num, .nav-link.active .nav-num {
+            background-color: var(--color-primary); color: white;
+        }
+        
+        /* Main */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            flex: 1;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        .viz-container {
+            background-color: var(--color-surface);
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .viz-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--color-grid);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(to right, var(--color-surface), var(--color-background));
+        }
+        
+        .viz-title { font-size: 1.1rem; font-weight: 600; color: var(--color-text); }
+        .viz-subtitle { font-size: 0.75rem; color: var(--color-text-light); }
+        
+        .viz-body {
+            flex: 1;
+            display: flex;
+            min-height: 0;
+        }
+        
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            min-width: 0;
+            position: relative;
+        }
+        
+        #canvas {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 8px;
+            cursor: grab;
+        }
+        
+        #canvas.dragging {
+            cursor: grabbing;
+        }
+        
+        .drag-hint {
+            position: absolute;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(30, 41, 59, 0.8);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            pointer-events: none;
+        }
+        
+        /* Info panel */
+        .info-panel {
+            width: 280px;
+            background-color: var(--color-background);
+            border-left: 1px solid var(--color-grid);
+            padding: 12px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+        
+        .info-section { margin-bottom: 12px; }
+        
+        .info-section-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--color-text-light);
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+        
+        .control-group { margin-bottom: 10px; }
+        .control-label { font-size: 0.75rem; color: var(--color-text); margin-bottom: 4px; display: block; }
+        
+        .btn-group { display: flex; gap: 4px; }
+        
+        .btn {
+            padding: 6px 10px;
+            font-size: 0.75rem;
+            border: 1px solid var(--color-grid);
+            background: var(--color-surface);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+            flex: 1;
+        }
+        
+        .btn:hover { border-color: var(--color-primary); }
+        .btn.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+        
+        .btn-reset {
+            width: 100%;
+            padding: 8px;
+            background: var(--color-primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            margin-top: 8px;
+        }
+        
+        .btn-reset:hover { background: #1d4ed8; }
+        
+        /* Quality metrics */
+        .metric-card {
+            background: var(--color-surface);
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 8px;
+            border-left: 4px solid var(--color-accent);
+        }
+        
+        .metric-card.warning { border-left-color: var(--color-warning); }
+        .metric-card.error { border-left-color: var(--color-error); }
+        
+        .metric-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+        
+        .metric-name {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--color-text);
+        }
+        
+        .metric-value {
+            font-size: 1rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            color: var(--color-accent);
+        }
+        
+        .metric-card.warning .metric-value { color: var(--color-warning); }
+        .metric-card.error .metric-value { color: var(--color-error); }
+        
+        .metric-bar {
+            height: 6px;
+            background: var(--color-grid);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 4px;
+        }
+        
+        .metric-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.2s, background-color 0.2s;
+        }
+        
+        .metric-range {
+            font-size: 0.65rem;
+            color: var(--color-text-light);
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .quality-status {
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+        
+        .quality-status.good {
+            background: rgba(5, 150, 105, 0.1);
+            color: var(--color-accent);
+        }
+        
+        .quality-status.acceptable {
+            background: rgba(217, 119, 6, 0.1);
+            color: var(--color-warning);
+        }
+        
+        .quality-status.poor {
+            background: rgba(220, 38, 38, 0.1);
+            color: var(--color-error);
+        }
+        
+        .formula {
+            background: var(--color-surface);
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            text-align: center;
+            margin-top: 8px;
+        }
+        
+        @media (max-width: 900px) {
+            .sidebar { display: none; }
+            .main-content { margin-left: 0; }
+        }
+        
+        @media (max-width: 700px) {
+            .viz-body { flex-direction: column; }
+            .info-panel { width: 100%; border-left: none; border-top: 1px solid var(--color-grid); }
+        }
+        
+        /* Callout notification */
+        .callout {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(30, 41, 59, 0.95);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.3s ease;
+            max-width: 400px;
+            text-align: center;
+        }
+        .callout.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+        .callout.info { border-left: 4px solid var(--color-primary); }
+        .callout.success { border-left: 4px solid var(--color-accent); }
+        .callout.warning { border-left: 4px solid var(--color-warning); }
+    </style>
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header"><h1>FEA Mesh Review</h1></div>
+        <a href="index.html" class="nav-link"><span class="nav-num">⌂</span> Home</a>
+        <a href="01-domain-discretization.html" class="nav-link"><span class="nav-num">1</span> Domain Discretization</a>
+        <a href="02-shape-functions.html" class="nav-link"><span class="nav-num">2</span> Shape Functions</a>
+        <a href="03-mesh-types-comparison.html" class="nav-link"><span class="nav-num">3</span> Mesh Types</a>
+        <a href="04-h-refinement.html" class="nav-link"><span class="nav-num">4</span> h-Refinement</a>
+        <a href="05-p-refinement.html" class="nav-link"><span class="nav-num">5</span> p-Refinement</a>
+        <a href="06-convergence-plot.html" class="nav-link"><span class="nav-num">6</span> Convergence</a>
+        <a href="07-element-quality.html" class="nav-link active"><span class="nav-num">7</span> Element Quality</a>
+    </nav>
+    
+    <main class="main-content">
+        <div class="viz-container">
+            <div class="viz-header">
+                <div>
+                    <div class="viz-title">Element Quality Metrics</div>
+                    <div class="viz-subtitle">Section 7 · Understanding mesh quality through interactive distortion</div>
+                </div>
+            </div>
+            
+            <div class="viz-body">
+                <div class="canvas-container">
+                    <canvas id="canvas" width="600" height="500"></canvas>
+                    <div class="drag-hint">Drag corner nodes to distort the element</div>
+                </div>
+                
+                <div class="info-panel">
+                    <div class="info-section">
+                        <div class="info-section-title">Element Type</div>
+                        <div class="btn-group" id="element-type-group">
+                            <button class="btn active" data-type="quad">Quadrilateral</button>
+                            <button class="btn" data-type="triangle">Triangle</button>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Overall Quality</div>
+                        <div class="quality-status good" id="quality-status">Good Quality</div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Quality Metrics</div>
+                        
+                        <div class="metric-card" id="aspect-ratio-card">
+                            <div class="metric-header">
+                                <span class="metric-name">Aspect Ratio</span>
+                                <span class="metric-value" id="aspect-ratio-value">1.00</span>
+                            </div>
+                            <div class="metric-bar">
+                                <div class="metric-bar-fill" id="aspect-ratio-bar" style="width: 20%; background: var(--color-accent);"></div>
+                            </div>
+                            <div class="metric-range">
+                                <span>Optimal: 1.0</span>
+                                <span>Acceptable: &lt;3</span>
+                                <span>Poor: &gt;5</span>
+                            </div>
+                        </div>
+                        
+                        <div class="metric-card" id="skewness-card">
+                            <div class="metric-header">
+                                <span class="metric-name">Skewness</span>
+                                <span class="metric-value" id="skewness-value">0.00</span>
+                            </div>
+                            <div class="metric-bar">
+                                <div class="metric-bar-fill" id="skewness-bar" style="width: 0%; background: var(--color-accent);"></div>
+                            </div>
+                            <div class="metric-range">
+                                <span>Optimal: 0.0</span>
+                                <span>Acceptable: &lt;0.5</span>
+                                <span>Poor: &gt;0.75</span>
+                            </div>
+                        </div>
+                        
+                        <div class="metric-card" id="jacobian-card">
+                            <div class="metric-header">
+                                <span class="metric-name">Jacobian Ratio</span>
+                                <span class="metric-value" id="jacobian-value">1.00</span>
+                            </div>
+                            <div class="metric-bar">
+                                <div class="metric-bar-fill" id="jacobian-bar" style="width: 100%; background: var(--color-accent);"></div>
+                            </div>
+                            <div class="metric-range">
+                                <span>Optimal: 1.0</span>
+                                <span>Acceptable: &gt;0.5</span>
+                                <span>Poor: &lt;0.3</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Formulas</div>
+                        <div class="formula" id="formula-display">
+                            \( AR = \frac{L_{max}}{L_{min}} \)
+                        </div>
+                    </div>
+                    
+                    <button class="btn-reset" id="reset-btn" title="Restore element to ideal shape with optimal quality metrics">Reset to Ideal Shape</button>
+                </div>
+            </div>
+        </div>
+        <div class="callout" id="callout"></div>
+    </main>
+    
+    <script>
+        const COLORS = {
+            primary: '#2563eb',
+            accent: '#059669',
+            warning: '#d97706',
+            error: '#dc2626',
+            node: '#1e40af',
+            nodeHover: '#3b82f6',
+            element: '#3b82f6',
+            elementFill: 'rgba(59, 130, 246, 0.15)',
+            elementFillWarning: 'rgba(217, 119, 6, 0.15)',
+            elementFillError: 'rgba(220, 38, 38, 0.15)',
+            grid: '#e2e8f0',
+            textLight: '#64748b',
+            ideal: 'rgba(5, 150, 105, 0.3)'
+        };
+        
+        class ElementQualityDemo {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.width = this.canvas.width;
+                this.height = this.canvas.height;
+                
+                this.elementType = 'quad';
+                this.nodeRadius = 12;
+                this.selectedNode = null;
+                this.hoveredNode = null;
+                
+                // Center of canvas
+                this.centerX = this.width / 2;
+                this.centerY = this.height / 2;
+                this.elementSize = 180;
+                
+                this.initNodes();
+                this.setupEventListeners();
+                this.render();
+                this.updateMetrics();
+            }
+            
+            initNodes() {
+                const s = this.elementSize;
+                const cx = this.centerX;
+                const cy = this.centerY;
+                
+                if (this.elementType === 'quad') {
+                    // Square quadrilateral (ideal shape)
+                    this.nodes = [
+                        { x: cx - s, y: cy - s, id: 0 },  // Bottom-left
+                        { x: cx + s, y: cy - s, id: 1 },  // Bottom-right
+                        { x: cx + s, y: cy + s, id: 2 },  // Top-right
+                        { x: cx - s, y: cy + s, id: 3 }   // Top-left
+                    ];
+                    this.idealNodes = this.nodes.map(n => ({ ...n }));
+                } else {
+                    // Equilateral triangle (ideal shape)
+                    const h = s * Math.sqrt(3);
+                    this.nodes = [
+                        { x: cx, y: cy - h * 0.6, id: 0 },           // Top
+                        { x: cx + s, y: cy + h * 0.4, id: 1 },       // Bottom-right
+                        { x: cx - s, y: cy + h * 0.4, id: 2 }        // Bottom-left
+                    ];
+                    this.idealNodes = this.nodes.map(n => ({ ...n }));
+                }
+            }
+            
+            setupEventListeners() {
+                // Element type toggle
+                document.getElementById('element-type-group').addEventListener('click', (e) => {
+                    if (e.target.classList.contains('btn')) {
+                        document.querySelectorAll('#element-type-group .btn').forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        this.elementType = e.target.dataset.type;
+                        this.initNodes();
+                        this.render();
+                        this.updateMetrics();
+                        
+                        // Callout for element type change
+                        const idealAngle = this.elementType === 'quad' ? '90°' : '60°';
+                        showCallout(`${this.elementType === 'quad' ? 'Quadrilateral' : 'Triangle'}: Ideal interior angles are ${idealAngle}`, 'info');
+                    }
+                });
+                
+                // Reset button
+                document.getElementById('reset-btn').addEventListener('click', () => {
+                    this.reset();
+                    showCallout('Element restored to ideal shape — all quality metrics optimal', 'success');
+                });
+                
+                // Mouse events for dragging
+                this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+                this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+                this.canvas.addEventListener('mouseup', () => this.handleMouseUp());
+                this.canvas.addEventListener('mouseleave', () => this.handleMouseUp());
+                
+                // Touch events for mobile
+                this.canvas.addEventListener('touchstart', (e) => this.handleTouchStart(e));
+                this.canvas.addEventListener('touchmove', (e) => this.handleTouchMove(e));
+                this.canvas.addEventListener('touchend', () => this.handleMouseUp());
+            }
+            
+            getMousePos(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const scaleX = this.canvas.width / rect.width;
+                const scaleY = this.canvas.height / rect.height;
+                return {
+                    x: (e.clientX - rect.left) * scaleX,
+                    y: (e.clientY - rect.top) * scaleY
+                };
+            }
+            
+            getTouchPos(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const scaleX = this.canvas.width / rect.width;
+                const scaleY = this.canvas.height / rect.height;
+                const touch = e.touches[0];
+                return {
+                    x: (touch.clientX - rect.left) * scaleX,
+                    y: (touch.clientY - rect.top) * scaleY
+                };
+            }
+            
+            findNodeAtPosition(pos) {
+                for (const node of this.nodes) {
+                    const dx = pos.x - node.x;
+                    const dy = pos.y - node.y;
+                    if (Math.sqrt(dx * dx + dy * dy) < this.nodeRadius + 5) {
+                        return node;
+                    }
+                }
+                return null;
+            }
+            
+            handleMouseDown(e) {
+                const pos = this.getMousePos(e);
+                this.selectedNode = this.findNodeAtPosition(pos);
+                if (this.selectedNode) {
+                    this.canvas.classList.add('dragging');
+                }
+            }
+            
+            handleMouseMove(e) {
+                const pos = this.getMousePos(e);
+                
+                if (this.selectedNode) {
+                    // Constrain to canvas bounds with padding
+                    const padding = 30;
+                    this.selectedNode.x = Math.max(padding, Math.min(this.width - padding, pos.x));
+                    this.selectedNode.y = Math.max(padding, Math.min(this.height - padding, pos.y));
+                    this.render();
+                    this.updateMetrics();
+                } else {
+                    // Hover detection
+                    const hoveredNode = this.findNodeAtPosition(pos);
+                    if (hoveredNode !== this.hoveredNode) {
+                        this.hoveredNode = hoveredNode;
+                        this.canvas.style.cursor = hoveredNode ? 'grab' : 'default';
+                        this.render();
+                    }
+                }
+            }
+            
+            handleMouseUp() {
+                this.selectedNode = null;
+                this.canvas.classList.remove('dragging');
+            }
+            
+            handleTouchStart(e) {
+                e.preventDefault();
+                const pos = this.getTouchPos(e);
+                this.selectedNode = this.findNodeAtPosition(pos);
+            }
+            
+            handleTouchMove(e) {
+                e.preventDefault();
+                if (this.selectedNode) {
+                    const pos = this.getTouchPos(e);
+                    const padding = 30;
+                    this.selectedNode.x = Math.max(padding, Math.min(this.width - padding, pos.x));
+                    this.selectedNode.y = Math.max(padding, Math.min(this.height - padding, pos.y));
+                    this.render();
+                    this.updateMetrics();
+                }
+            }
+            
+            reset() {
+                this.nodes = this.idealNodes.map(n => ({ ...n }));
+                this.render();
+                this.updateMetrics();
+            }
+            
+            // Quality metric calculations
+            getEdgeLengths() {
+                const lengths = [];
+                const n = this.nodes.length;
+                for (let i = 0; i < n; i++) {
+                    const n1 = this.nodes[i];
+                    const n2 = this.nodes[(i + 1) % n];
+                    const dx = n2.x - n1.x;
+                    const dy = n2.y - n1.y;
+                    lengths.push(Math.sqrt(dx * dx + dy * dy));
+                }
+                return lengths;
+            }
+            
+            computeAspectRatio() {
+                const lengths = this.getEdgeLengths();
+                const maxLen = Math.max(...lengths);
+                const minLen = Math.min(...lengths);
+                return minLen > 0 ? maxLen / minLen : Infinity;
+            }
+            
+            getAngles() {
+                const angles = [];
+                const n = this.nodes.length;
+                
+                for (let i = 0; i < n; i++) {
+                    const prev = this.nodes[(i - 1 + n) % n];
+                    const curr = this.nodes[i];
+                    const next = this.nodes[(i + 1) % n];
+                    
+                    // Vectors from current node to neighbors
+                    const v1x = prev.x - curr.x;
+                    const v1y = prev.y - curr.y;
+                    const v2x = next.x - curr.x;
+                    const v2y = next.y - curr.y;
+                    
+                    // Angle between vectors
+                    const dot = v1x * v2x + v1y * v2y;
+                    const mag1 = Math.sqrt(v1x * v1x + v1y * v1y);
+                    const mag2 = Math.sqrt(v2x * v2x + v2y * v2y);
+                    
+                    if (mag1 > 0 && mag2 > 0) {
+                        const cosAngle = Math.max(-1, Math.min(1, dot / (mag1 * mag2)));
+                        angles.push(Math.acos(cosAngle) * 180 / Math.PI);
+                    } else {
+                        angles.push(0);
+                    }
+                }
+                return angles;
+            }
+            
+            computeSkewness() {
+                const angles = this.getAngles();
+                const idealAngle = this.elementType === 'quad' ? 90 : 60;
+                
+                // Maximum deviation from ideal angle, normalized
+                const maxDeviation = Math.max(...angles.map(a => Math.abs(a - idealAngle)));
+                return Math.min(1, maxDeviation / idealAngle);
+            }
+            
+            computeJacobianRatio() {
+                if (this.elementType === 'quad') {
+                    return this.computeQuadJacobianRatio();
+                } else {
+                    return this.computeTriangleJacobianRatio();
+                }
+            }
+            
+            computeQuadJacobianRatio() {
+                // Compute Jacobian at each corner of the quad
+                // For a quad, the Jacobian is related to the cross product of edge vectors
+                const jacobians = [];
+                const n = this.nodes;
+                
+                // At each corner, compute the cross product of the two adjacent edges
+                for (let i = 0; i < 4; i++) {
+                    const prev = n[(i - 1 + 4) % 4];
+                    const curr = n[i];
+                    const next = n[(i + 1) % 4];
+                    
+                    // Edge vectors pointing away from current node
+                    const e1x = prev.x - curr.x;
+                    const e1y = prev.y - curr.y;
+                    const e2x = next.x - curr.x;
+                    const e2y = next.y - curr.y;
+                    
+                    // 2D cross product (z-component)
+                    const cross = e1x * e2y - e1y * e2x;
+                    jacobians.push(cross);
+                }
+                
+                // Check for inverted element (negative Jacobian)
+                const allPositive = jacobians.every(j => j > 0);
+                const allNegative = jacobians.every(j => j < 0);
+                
+                if (!allPositive && !allNegative) {
+                    // Element is inverted or self-intersecting
+                    return 0;
+                }
+                
+                const absJacobians = jacobians.map(Math.abs);
+                const minJ = Math.min(...absJacobians);
+                const maxJ = Math.max(...absJacobians);
+                
+                return maxJ > 0 ? minJ / maxJ : 0;
+            }
+            
+            computeTriangleJacobianRatio() {
+                // For a triangle, compute the signed area
+                const n = this.nodes;
+                const area = 0.5 * ((n[1].x - n[0].x) * (n[2].y - n[0].y) - 
+                                    (n[2].x - n[0].x) * (n[1].y - n[0].y));
+                
+                // Compare to ideal equilateral triangle area
+                const lengths = this.getEdgeLengths();
+                const avgLen = lengths.reduce((a, b) => a + b, 0) / lengths.length;
+                const idealArea = (Math.sqrt(3) / 4) * avgLen * avgLen;
+                
+                if (area <= 0) return 0; // Inverted triangle
+                
+                return Math.min(1, area / idealArea);
+            }
+            
+            getQualityLevel() {
+                const ar = this.computeAspectRatio();
+                const skew = this.computeSkewness();
+                const jac = this.computeJacobianRatio();
+                
+                // Poor quality if any metric is bad
+                if (ar > 5 || skew > 0.75 || jac < 0.3) return 'poor';
+                // Acceptable if any metric is marginal
+                if (ar > 3 || skew > 0.5 || jac < 0.5) return 'acceptable';
+                // Good quality
+                return 'good';
+            }
+            
+            updateMetrics() {
+                const ar = this.computeAspectRatio();
+                const skew = this.computeSkewness();
+                const jac = this.computeJacobianRatio();
+                const quality = this.getQualityLevel();
+                
+                // Track previous quality for callout triggers
+                const prevQuality = this.lastQuality || 'good';
+                this.lastQuality = quality;
+                
+                // Show callout when quality degrades
+                if (quality !== prevQuality) {
+                    if (quality === 'poor') {
+                        showCallout('⚠ Poor quality detected — element may cause numerical errors in FEA', 'warning');
+                    } else if (quality === 'acceptable' && prevQuality === 'good') {
+                        showCallout('Quality degrading — consider keeping aspect ratio < 3 and skewness < 0.5', 'info');
+                    } else if (quality === 'good' && prevQuality !== 'good') {
+                        showCallout('✓ Quality restored to acceptable range', 'success');
+                    }
+                }
+                
+                // Update aspect ratio display
+                const arValue = document.getElementById('aspect-ratio-value');
+                const arBar = document.getElementById('aspect-ratio-bar');
+                const arCard = document.getElementById('aspect-ratio-card');
+                arValue.textContent = ar.toFixed(2);
+                const arPercent = Math.min(100, (ar / 6) * 100);
+                arBar.style.width = arPercent + '%';
+                
+                if (ar > 5) {
+                    arBar.style.background = COLORS.error;
+                    arCard.className = 'metric-card error';
+                } else if (ar > 3) {
+                    arBar.style.background = COLORS.warning;
+                    arCard.className = 'metric-card warning';
+                } else {
+                    arBar.style.background = COLORS.accent;
+                    arCard.className = 'metric-card';
+                }
+                
+                // Update skewness display
+                const skewValue = document.getElementById('skewness-value');
+                const skewBar = document.getElementById('skewness-bar');
+                const skewCard = document.getElementById('skewness-card');
+                skewValue.textContent = skew.toFixed(2);
+                skewBar.style.width = (skew * 100) + '%';
+                
+                if (skew > 0.75) {
+                    skewBar.style.background = COLORS.error;
+                    skewCard.className = 'metric-card error';
+                } else if (skew > 0.5) {
+                    skewBar.style.background = COLORS.warning;
+                    skewCard.className = 'metric-card warning';
+                } else {
+                    skewBar.style.background = COLORS.accent;
+                    skewCard.className = 'metric-card';
+                }
+                
+                // Update Jacobian ratio display
+                const jacValue = document.getElementById('jacobian-value');
+                const jacBar = document.getElementById('jacobian-bar');
+                const jacCard = document.getElementById('jacobian-card');
+                jacValue.textContent = jac.toFixed(2);
+                jacBar.style.width = (jac * 100) + '%';
+                
+                if (jac < 0.3) {
+                    jacBar.style.background = COLORS.error;
+                    jacCard.className = 'metric-card error';
+                } else if (jac < 0.5) {
+                    jacBar.style.background = COLORS.warning;
+                    jacCard.className = 'metric-card warning';
+                } else {
+                    jacBar.style.background = COLORS.accent;
+                    jacCard.className = 'metric-card';
+                }
+                
+                // Update overall quality status
+                const statusEl = document.getElementById('quality-status');
+                statusEl.className = 'quality-status ' + quality;
+                if (quality === 'good') {
+                    statusEl.textContent = '✓ Good Quality';
+                } else if (quality === 'acceptable') {
+                    statusEl.textContent = '⚠ Acceptable Quality';
+                } else {
+                    statusEl.textContent = '✗ Poor Quality';
+                }
+            }
+            
+            render() {
+                this.ctx.clearRect(0, 0, this.width, this.height);
+                this.drawBackgroundGrid();
+                this.drawIdealShape();
+                this.drawElement();
+                this.drawNodes();
+                this.drawNodeLabels();
+            }
+            
+            drawBackgroundGrid() {
+                this.ctx.strokeStyle = COLORS.grid;
+                this.ctx.lineWidth = 0.5;
+                
+                for (let x = 0; x <= this.width; x += 40) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, 0);
+                    this.ctx.lineTo(x, this.height);
+                    this.ctx.stroke();
+                }
+                for (let y = 0; y <= this.height; y += 40) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, y);
+                    this.ctx.lineTo(this.width, y);
+                    this.ctx.stroke();
+                }
+            }
+            
+            drawIdealShape() {
+                // Draw the ideal shape as a reference (dashed outline)
+                this.ctx.setLineDash([5, 5]);
+                this.ctx.strokeStyle = COLORS.ideal;
+                this.ctx.lineWidth = 2;
+                
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.idealNodes[0].x, this.idealNodes[0].y);
+                for (let i = 1; i < this.idealNodes.length; i++) {
+                    this.ctx.lineTo(this.idealNodes[i].x, this.idealNodes[i].y);
+                }
+                this.ctx.closePath();
+                this.ctx.stroke();
+                this.ctx.setLineDash([]);
+            }
+            
+            drawElement() {
+                const quality = this.getQualityLevel();
+                let fillColor = COLORS.elementFill;
+                let strokeColor = COLORS.element;
+                
+                if (quality === 'poor') {
+                    fillColor = COLORS.elementFillError;
+                    strokeColor = COLORS.error;
+                } else if (quality === 'acceptable') {
+                    fillColor = COLORS.elementFillWarning;
+                    strokeColor = COLORS.warning;
+                }
+                
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.nodes[0].x, this.nodes[0].y);
+                for (let i = 1; i < this.nodes.length; i++) {
+                    this.ctx.lineTo(this.nodes[i].x, this.nodes[i].y);
+                }
+                this.ctx.closePath();
+                
+                this.ctx.fillStyle = fillColor;
+                this.ctx.fill();
+                
+                this.ctx.strokeStyle = strokeColor;
+                this.ctx.lineWidth = 2.5;
+                this.ctx.stroke();
+            }
+            
+            drawNodes() {
+                for (const node of this.nodes) {
+                    const isHovered = node === this.hoveredNode;
+                    const isSelected = node === this.selectedNode;
+                    
+                    // Outer ring for hover/selection
+                    if (isHovered || isSelected) {
+                        this.ctx.beginPath();
+                        this.ctx.arc(node.x, node.y, this.nodeRadius + 4, 0, Math.PI * 2);
+                        this.ctx.fillStyle = 'rgba(37, 99, 235, 0.2)';
+                        this.ctx.fill();
+                    }
+                    
+                    // Node circle
+                    this.ctx.beginPath();
+                    this.ctx.arc(node.x, node.y, this.nodeRadius, 0, Math.PI * 2);
+                    this.ctx.fillStyle = isHovered || isSelected ? COLORS.nodeHover : COLORS.node;
+                    this.ctx.fill();
+                    
+                    // White border
+                    this.ctx.strokeStyle = '#ffffff';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.stroke();
+                }
+            }
+            
+            drawNodeLabels() {
+                this.ctx.font = 'bold 11px Segoe UI, sans-serif';
+                this.ctx.textAlign = 'center';
+                this.ctx.textBaseline = 'middle';
+                this.ctx.fillStyle = '#ffffff';
+                
+                for (let i = 0; i < this.nodes.length; i++) {
+                    const node = this.nodes[i];
+                    this.ctx.fillText((i + 1).toString(), node.x, node.y);
+                }
+            }
+        }
+        
+        // Callout notification system
+        let calloutTimeout;
+        function showCallout(message, type = 'info') {
+            const callout = document.getElementById('callout');
+            callout.textContent = message;
+            callout.className = 'callout ' + type;
+            
+            clearTimeout(calloutTimeout);
+            setTimeout(() => callout.classList.add('show'), 10);
+            
+            calloutTimeout = setTimeout(() => {
+                callout.classList.remove('show');
+            }, 4000);
+        }
+        
+        // Initialize on DOM ready
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('canvas');
+            if (!canvas.getContext) {
+                document.querySelector('.canvas-container').innerHTML = 
+                    '<p style="color:#dc2626;padding:40px;">Canvas not supported</p>';
+                return;
+            }
+            
+            new ElementQualityDemo('canvas');
+            
+            // Trigger MathJax to render formulas
+            if (window.MathJax) {
+                MathJax.typeset();
+            }
+        });
+    </script>
+</body>
+</html>

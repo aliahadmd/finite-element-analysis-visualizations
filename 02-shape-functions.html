@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shape Functions - FEA Mesh Review</title>
+    
+    <!-- Three.js for 3D graphics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <!-- MathJax for equations -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <style>
+        :root {
+            --color-primary: #2563eb;
+            --color-secondary: #7c3aed;
+            --color-accent: #059669;
+            --color-warning: #d97706;
+            --color-error: #dc2626;
+            --color-background: #f8fafc;
+            --color-surface: #ffffff;
+            --color-text: #1e293b;
+            --color-text-light: #64748b;
+            --color-grid: #e2e8f0;
+            --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --font-mono: 'Consolas', 'Monaco', monospace;
+            --sidebar-width: 220px;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: var(--font-family);
+            background-color: var(--color-background);
+            color: var(--color-text);
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        /* Sidebar Navigation */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--color-surface);
+            border-right: 1px solid var(--color-grid);
+            padding: 16px 0;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+        
+        .sidebar-header {
+            padding: 0 16px 12px;
+            border-bottom: 1px solid var(--color-grid);
+            margin-bottom: 12px;
+        }
+        
+        .sidebar-header h1 {
+            font-size: 1rem;
+            color: var(--color-primary);
+        }
+        
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            text-decoration: none;
+            color: var(--color-text-light);
+            font-size: 0.8rem;
+            transition: all 0.15s;
+        }
+        
+        .nav-link:hover { background-color: var(--color-background); color: var(--color-primary); }
+        .nav-link.active { background-color: rgba(37, 99, 235, 0.1); color: var(--color-primary); font-weight: 500; }
+        
+        .nav-num {
+            width: 20px; height: 20px;
+            background-color: var(--color-grid);
+            border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.7rem; font-weight: 600;
+        }
+        
+        .nav-link:hover .nav-num, .nav-link.active .nav-num {
+            background-color: var(--color-primary); color: white;
+        }
+        
+        /* Main Content */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            flex: 1;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        /* Visualization Container - Screenshot friendly */
+        .viz-container {
+            background-color: var(--color-surface);
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        /* Header inside viz */
+        .viz-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--color-grid);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(to right, var(--color-surface), var(--color-background));
+        }
+        
+        .viz-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--color-text);
+        }
+        
+        .viz-subtitle {
+            font-size: 0.75rem;
+            color: var(--color-text-light);
+        }
+        
+        /* Main viz area with 3D and info panel */
+        .viz-body {
+            flex: 1;
+            display: flex;
+            min-height: 0;
+        }
+        
+        #three-container {
+            flex: 1;
+            min-width: 0;
+            cursor: grab;
+        }
+        
+        #three-container:active { cursor: grabbing; }
+        
+        /* Right info panel inside viz */
+        .info-panel {
+            width: 260px;
+            background-color: var(--color-background);
+            border-left: 1px solid var(--color-grid);
+            padding: 12px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+        
+        .info-section {
+            margin-bottom: 12px;
+        }
+        
+        .info-section-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--color-text-light);
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+        
+        /* Controls */
+        .control-group { margin-bottom: 10px; }
+        .control-label {
+            font-size: 0.75rem;
+            color: var(--color-text);
+            margin-bottom: 4px;
+            display: block;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .btn {
+            padding: 6px 10px;
+            font-size: 0.75rem;
+            border: 1px solid var(--color-grid);
+            background: var(--color-surface);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+            flex: 1;
+        }
+        
+        .btn:hover { border-color: var(--color-primary); }
+        .btn.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+        
+        .node-buttons {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        
+        .node-btn {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            border: 2px solid var(--color-grid);
+            background: var(--color-surface);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.7rem;
+            transition: all 0.15s;
+        }
+        
+        .node-btn:hover { border-color: var(--color-primary); }
+        .node-btn.active { color: white; }
+        .node-btn.n1 { color: #dc2626; } .node-btn.n1.active { background: #dc2626; border-color: #dc2626; color: white; }
+        .node-btn.n2 { color: #059669; } .node-btn.n2.active { background: #059669; border-color: #059669; color: white; }
+        .node-btn.n3 { color: #2563eb; } .node-btn.n3.active { background: #2563eb; border-color: #2563eb; color: white; }
+        .node-btn.n4 { color: #7c3aed; } .node-btn.n4.active { background: #7c3aed; border-color: #7c3aed; color: white; }
+        .node-btn.n5 { color: #d97706; } .node-btn.n5.active { background: #d97706; border-color: #d97706; color: white; }
+        .node-btn.n6 { color: #0891b2; } .node-btn.n6.active { background: #0891b2; border-color: #0891b2; color: white; }
+        
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+        
+        .checkbox-row input { width: 14px; height: 14px; accent-color: var(--color-primary); }
+        .checkbox-row label { font-size: 0.75rem; color: var(--color-text); }
+        
+        /* Metrics */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+        
+        .metric {
+            background: var(--color-surface);
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+        }
+        
+        .metric-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--color-primary);
+            font-family: var(--font-mono);
+        }
+        
+        .metric-label {
+            font-size: 0.65rem;
+            color: var(--color-text-light);
+            text-transform: uppercase;
+        }
+        
+        /* Equations */
+        .equation-box {
+            background: var(--color-surface);
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 0.75rem;
+            line-height: 1.5;
+        }
+        
+        /* Description box */
+        .description-box {
+            background: var(--color-surface);
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 0.72rem;
+            line-height: 1.5;
+            color: var(--color-text);
+        }
+        
+        .description-box p { margin-bottom: 6px; }
+        .description-box p:last-child { margin-bottom: 0; }
+        
+        /* Legend */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.7rem;
+        }
+        
+        .legend-color {
+            width: 12px; height: 12px;
+            border-radius: 2px;
+        }
+        
+        .btn-reset {
+            width: 100%;
+            padding: 8px;
+            background: var(--color-primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            margin-top: 8px;
+        }
+        
+        .btn-reset:hover { background: #1d4ed8; }
+        
+        @media (max-width: 900px) {
+            .sidebar { display: none; }
+            .main-content { margin-left: 0; }
+            .info-panel { width: 200px; }
+        }
+        
+        /* Callout notification */
+        .callout {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(30, 41, 59, 0.95);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.3s ease;
+            max-width: 400px;
+            text-align: center;
+        }
+        
+        .callout.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+        
+        .callout.info { border-left: 4px solid var(--color-primary); }
+        .callout.success { border-left: 4px solid var(--color-accent); }
+        
+        @media (max-width: 700px) {
+            .viz-body { flex-direction: column; }
+            .info-panel { width: 100%; border-left: none; border-top: 1px solid var(--color-grid); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <h1>FEA Mesh Review</h1>
+        </div>
+        <a href="index.html" class="nav-link"><span class="nav-num">⌂</span> Home</a>
+        <a href="01-domain-discretization.html" class="nav-link"><span class="nav-num">1</span> Domain Discretization</a>
+        <a href="02-shape-functions.html" class="nav-link active"><span class="nav-num">2</span> Shape Functions</a>
+        <a href="03-mesh-types-comparison.html" class="nav-link"><span class="nav-num">3</span> Mesh Types</a>
+        <a href="04-h-refinement.html" class="nav-link"><span class="nav-num">4</span> h-Refinement</a>
+        <a href="05-p-refinement.html" class="nav-link"><span class="nav-num">5</span> p-Refinement</a>
+        <a href="06-convergence-plot.html" class="nav-link"><span class="nav-num">6</span> Convergence</a>
+        <a href="07-element-quality.html" class="nav-link"><span class="nav-num">7</span> Element Quality</a>
+    </nav>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="viz-container">
+            <!-- Header -->
+            <div class="viz-header">
+                <div>
+                    <div class="viz-title">Shape Functions</div>
+                    <div class="viz-subtitle">Section 3 · Basis functions for FE interpolation</div>
+                </div>
+            </div>
+            
+            <!-- Body: 3D view + info panel -->
+            <div class="viz-body">
+                <div id="three-container"></div>
+                
+                <div class="info-panel">
+                    <!-- Controls -->
+                    <div class="info-section">
+                        <div class="info-section-title">Element Type</div>
+                        <div class="btn-group" id="element-type-group" title="Select the polynomial order of shape functions">
+                            <button class="btn active" data-type="linear" title="3-node triangle with linear (p=1) shape functions">Linear (3)</button>
+                            <button class="btn" data-type="quadratic" title="6-node triangle with quadratic (p=2) shape functions">Quadratic (6)</button>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Select Node</div>
+                        <div class="node-buttons" id="node-buttons" title="Click to highlight the shape function for each node">
+                            <button class="node-btn n1 active" data-node="0" title="Shape function N₁ at corner node 1">N₁</button>
+                            <button class="node-btn n2" data-node="1" title="Shape function N₂ at corner node 2">N₂</button>
+                            <button class="node-btn n3" data-node="2" title="Shape function N₃ at corner node 3">N₃</button>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Display</div>
+                        <div class="checkbox-row">
+                            <input type="checkbox" id="show-all" checked title="Show all shape functions simultaneously">
+                            <label for="show-all">Show All Functions</label>
+                        </div>
+                        <div class="checkbox-row">
+                            <input type="checkbox" id="show-sum" title="Display the sum of all shape functions (should equal 1 everywhere)">
+                            <label for="show-sum">Sum = 1 (Partition of Unity)</label>
+                        </div>
+                        <div class="checkbox-row">
+                            <input type="checkbox" id="show-wireframe" title="Toggle wireframe view of the 3D surfaces">
+                            <label for="show-wireframe">Wireframe</label>
+                        </div>
+                    </div>
+                    
+                    <!-- Metrics -->
+                    <div class="info-section">
+                        <div class="info-section-title">Metrics</div>
+                        <div class="metrics-grid">
+                            <div class="metric" title="Number of nodes in the element">
+                                <div class="metric-value" id="node-count">3</div>
+                                <div class="metric-label">Nodes</div>
+                            </div>
+                            <div class="metric" title="Polynomial order of the shape functions">
+                                <div class="metric-value" id="poly-order">1</div>
+                                <div class="metric-label">Order</div>
+                            </div>
+                            <div class="metric" title="Degrees of freedom per element (nodes × 2 for 2D)">
+                                <div class="metric-value" id="dof-count">6</div>
+                                <div class="metric-label">DOF</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Equations -->
+                    <div class="info-section">
+                        <div class="info-section-title">Shape Function Equations</div>
+                        <div class="equation-box" id="equation-display">
+                            \(N_1 = 1 - \xi - \eta\)<br>
+                            \(N_2 = \xi\)<br>
+                            \(N_3 = \eta\)
+                        </div>
+                    </div>
+                    
+                    <!-- Concept Description -->
+                    <div class="info-section">
+                        <div class="info-section-title">Concept</div>
+                        <div class="description-box">
+                            <p><strong>Shape functions</strong> (or basis functions) interpolate nodal values within an element. Each function equals 1 at its node and 0 at all other nodes.</p>
+                            <p>The <strong>partition of unity</strong> property ensures: \(\sum_i N_i(\xi,\eta) = 1\) at every point.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Legend -->
+                    <div class="info-section">
+                        <div class="info-section-title">Legend</div>
+                        <div class="legend">
+                            <div class="legend-item"><div class="legend-color" style="background:#dc2626"></div>N₁</div>
+                            <div class="legend-item"><div class="legend-color" style="background:#059669"></div>N₂</div>
+                            <div class="legend-item"><div class="legend-color" style="background:#2563eb"></div>N₃</div>
+                            <div class="legend-item" id="legend-n4" style="display:none"><div class="legend-color" style="background:#7c3aed"></div>N₄</div>
+                            <div class="legend-item" id="legend-n5" style="display:none"><div class="legend-color" style="background:#d97706"></div>N₅</div>
+                            <div class="legend-item" id="legend-n6" style="display:none"><div class="legend-color" style="background:#0891b2"></div>N₆</div>
+                            <div class="legend-item" id="legend-sum" style="display:none"><div class="legend-color" style="background:#64748b"></div>Σ=1</div>
+                        </div>
+                    </div>
+                    
+                    <button class="btn-reset" id="reset-btn" title="Reset camera view and all settings to defaults">Reset View</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Callout notification element -->
+        <div class="callout" id="callout"></div>
+    </main>
+    
+    <script>
+        // Color constants
+        const COLORS = {
+            n1: 0xdc2626, n2: 0x059669, n3: 0x2563eb,
+            n4: 0x7c3aed, n5: 0xd97706, n6: 0x0891b2,
+            sum: 0x64748b, background: 0xf8fafc
+        };
+        
+        // Shape function definitions
+        const ShapeFunctions = {
+            linear: {
+                N1: (xi, eta) => 1 - xi - eta,
+                N2: (xi, eta) => xi,
+                N3: (xi, eta) => eta,
+                nodeCount: 3,
+                nodes: [
+                    { xi: 0, eta: 0 }, { xi: 1, eta: 0 }, { xi: 0, eta: 1 }
+                ]
+            },
+            quadratic: {
+                N1: (xi, eta) => { const L1 = 1 - xi - eta; return L1 * (2 * L1 - 1); },
+                N2: (xi, eta) => { const L2 = xi; return L2 * (2 * L2 - 1); },
+                N3: (xi, eta) => { const L3 = eta; return L3 * (2 * L3 - 1); },
+                N4: (xi, eta) => 4 * (1 - xi - eta) * xi,
+                N5: (xi, eta) => 4 * xi * eta,
+                N6: (xi, eta) => 4 * (1 - xi - eta) * eta,
+                nodeCount: 6,
+                nodes: [
+                    { xi: 0, eta: 0 }, { xi: 1, eta: 0 }, { xi: 0, eta: 1 },
+                    { xi: 0.5, eta: 0 }, { xi: 0.5, eta: 0.5 }, { xi: 0, eta: 0.5 }
+                ]
+            }
+        };
+        
+        class ShapeFunctionVisualizer {
+            constructor(containerId) {
+                this.container = document.getElementById(containerId);
+                this.width = this.container.clientWidth;
+                this.height = this.container.clientHeight;
+                
+                this.elementType = 'linear';
+                this.selectedNode = 0;
+                this.showAll = true;
+                this.showSum = false;
+                this.showWireframe = false;
+                
+                this.surfaces = [];
+                this.sumSurface = null;
+                this.nodeMarkers = [];
+                
+                this.init();
+                this.setupEventListeners();
+                this.createVisualization();
+                this.animate();
+            }
+            
+            init() {
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(COLORS.background);
+                
+                this.camera = new THREE.PerspectiveCamera(45, this.width / this.height, 0.1, 1000);
+                this.camera.position.set(2, 2, 2);
+                
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setSize(this.width, this.height);
+                this.renderer.setPixelRatio(window.devicePixelRatio);
+                this.container.appendChild(this.renderer.domElement);
+                
+                this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+                this.controls.enableDamping = true;
+                this.controls.dampingFactor = 0.05;
+                this.controls.target.set(0.5, 0.3, 0.25);
+                this.controls.update();
+                
+                // Lighting
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+                const light1 = new THREE.DirectionalLight(0xffffff, 0.8);
+                light1.position.set(5, 10, 5);
+                this.scene.add(light1);
+                const light2 = new THREE.DirectionalLight(0xffffff, 0.3);
+                light2.position.set(-5, 5, -5);
+                this.scene.add(light2);
+                
+                this.addAxes();
+                window.addEventListener('resize', () => this.onWindowResize());
+            }
+            
+            addAxes() {
+                const len = 1.3;
+                const col = 0x666666;
+                
+                // X axis (ξ)
+                const xG = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(len,0,0)]);
+                this.scene.add(new THREE.Line(xG, new THREE.LineBasicMaterial({ color: col })));
+                
+                // Y axis (N)
+                const yG = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,1.2,0)]);
+                this.scene.add(new THREE.Line(yG, new THREE.LineBasicMaterial({ color: col })));
+                
+                // Z axis (η)
+                const zG = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,len)]);
+                this.scene.add(new THREE.Line(zG, new THREE.LineBasicMaterial({ color: col })));
+                
+                this.addLabel('ξ', len + 0.1, 0, 0);
+                this.addLabel('N', 0, 1.3, 0);
+                this.addLabel('η', 0, 0, len + 0.1);
+            }
+            
+            addLabel(text, x, y, z) {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = 64; canvas.height = 64;
+                ctx.fillStyle = '#64748b';
+                ctx.font = 'bold 48px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(text, 32, 32);
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture }));
+                sprite.position.set(x, y, z);
+                sprite.scale.set(0.2, 0.2, 1);
+                this.scene.add(sprite);
+            }
+            
+            setupEventListeners() {
+                // Element type
+                document.getElementById('element-type-group').addEventListener('click', (e) => {
+                    if (e.target.classList.contains('btn')) {
+                        document.querySelectorAll('#element-type-group .btn').forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        this.elementType = e.target.dataset.type;
+                        this.selectedNode = 0;
+                        this.updateNodeButtons();
+                        this.createVisualization();
+                        this.updateMetrics();
+                        this.updateEquations();
+                        // Show callout for element type change
+                        if (this.elementType === 'quadratic') {
+                            showCallout('Quadratic elements have 6 nodes and can represent curved edges', 'info');
+                        }
+                    }
+                });
+                
+                // Node buttons
+                document.getElementById('node-buttons').addEventListener('click', (e) => {
+                    if (e.target.classList.contains('node-btn')) {
+                        document.querySelectorAll('.node-btn').forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        this.selectedNode = parseInt(e.target.dataset.node);
+                        this.updateSurfaceVisibility();
+                    }
+                });
+                
+                document.getElementById('show-all').addEventListener('change', (e) => {
+                    this.showAll = e.target.checked;
+                    this.updateSurfaceVisibility();
+                });
+                
+                document.getElementById('show-sum').addEventListener('change', (e) => {
+                    this.showSum = e.target.checked;
+                    this.updateSurfaceVisibility();
+                    document.getElementById('legend-sum').style.display = this.showSum ? 'flex' : 'none';
+                    // Show callout for partition of unity
+                    if (this.showSum) {
+                        showCallout('Partition of Unity: The sum of all shape functions equals 1 everywhere!', 'success');
+                    }
+                });
+                
+                document.getElementById('show-wireframe').addEventListener('change', (e) => {
+                    this.showWireframe = e.target.checked;
+                    this.updateWireframe();
+                });
+                
+                document.getElementById('reset-btn').addEventListener('click', () => this.resetView());
+            }
+            
+            updateNodeButtons() {
+                const container = document.getElementById('node-buttons');
+                const nodeCount = ShapeFunctions[this.elementType].nodeCount;
+                
+                let html = '';
+                for (let i = 0; i < nodeCount; i++) {
+                    const active = i === 0 ? 'active' : '';
+                    const subscript = ['₁','₂','₃','₄','₅','₆'][i];
+                    html += `<button class="node-btn n${i+1} ${active}" data-node="${i}">N${subscript}</button>`;
+                }
+                container.innerHTML = html;
+                
+                // Update legend
+                for (let i = 4; i <= 6; i++) {
+                    const el = document.getElementById(`legend-n${i}`);
+                    if (el) el.style.display = (this.elementType === 'quadratic') ? 'flex' : 'none';
+                }
+            }
+            
+            updateMetrics() {
+                const sf = ShapeFunctions[this.elementType];
+                document.getElementById('node-count').textContent = sf.nodeCount;
+                document.getElementById('poly-order').textContent = this.elementType === 'linear' ? 1 : 2;
+                document.getElementById('dof-count').textContent = sf.nodeCount * 2;
+            }
+            
+            updateEquations() {
+                const box = document.getElementById('equation-display');
+                if (this.elementType === 'linear') {
+                    box.innerHTML = '\\(N_1 = 1 - \\xi - \\eta\\)<br>\\(N_2 = \\xi\\)<br>\\(N_3 = \\eta\\)';
+                } else {
+                    box.innerHTML = '\\(N_i = L_i(2L_i - 1)\\) corners<br>\\(N_{4,5,6} = 4L_iL_j\\) mid-edges';
+                }
+                if (window.MathJax) MathJax.typesetPromise([box]);
+            }
+            
+            createVisualization() {
+                // Clear existing
+                this.surfaces.forEach(s => { this.scene.remove(s.mesh); if (s.wireframe) this.scene.remove(s.wireframe); });
+                this.surfaces = [];
+                if (this.sumSurface) { this.scene.remove(this.sumSurface.mesh); if (this.sumSurface.wireframe) this.scene.remove(this.sumSurface.wireframe); }
+                this.nodeMarkers.forEach(m => this.scene.remove(m));
+                this.nodeMarkers = [];
+                
+                const sf = ShapeFunctions[this.elementType];
+                const colors = [COLORS.n1, COLORS.n2, COLORS.n3, COLORS.n4, COLORS.n5, COLORS.n6];
+                
+                this.createBasePlane();
+                
+                for (let i = 0; i < sf.nodeCount; i++) {
+                    const surface = this.createSurface(sf[`N${i+1}`], colors[i]);
+                    this.surfaces.push(surface);
+                }
+                
+                this.createSumSurface();
+                this.createNodeMarkers();
+                this.updateSurfaceVisibility();
+            }
+            
+            createBasePlane() {
+                const geom = new THREE.BufferGeometry();
+                geom.setAttribute('position', new THREE.Float32BufferAttribute([0,0,0, 1,0,0, 0,0,1], 3));
+                const mat = new THREE.MeshBasicMaterial({ color: 0xe2e8f0, side: THREE.DoubleSide, transparent: true, opacity: 0.3 });
+                this.scene.add(new THREE.Mesh(geom, mat));
+                
+                const lineG = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(0,0,0), new THREE.Vector3(1,0,0),
+                    new THREE.Vector3(0,0,1), new THREE.Vector3(0,0,0)
+                ]);
+                this.scene.add(new THREE.Line(lineG, new THREE.LineBasicMaterial({ color: 0x64748b })));
+            }
+            
+            createSurface(func, color) {
+                const res = 40;
+                const vertices = [], indices = [], colors = [];
+                
+                for (let i = 0; i <= res; i++) {
+                    for (let j = 0; j <= res - i; j++) {
+                        const xi = i / res, eta = j / res;
+                        if (xi + eta <= 1.001) {
+                            vertices.push(xi, func(xi, eta), eta);
+                            colors.push(((color >> 16) & 255) / 255, ((color >> 8) & 255) / 255, (color & 255) / 255);
+                        }
+                    }
+                }
+                
+                let idx = 0;
+                for (let i = 0; i < res; i++) {
+                    const rowStart = idx, rowLen = res - i + 1, nextRow = rowStart + rowLen;
+                    for (let j = 0; j < rowLen - 1; j++) {
+                        indices.push(rowStart + j, rowStart + j + 1, nextRow + j);
+                        if (j < rowLen - 2) indices.push(rowStart + j + 1, nextRow + j + 1, nextRow + j);
+                    }
+                    idx = nextRow;
+                }
+                
+                const geom = new THREE.BufferGeometry();
+                geom.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+                geom.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+                geom.setIndex(indices);
+                geom.computeVertexNormals();
+                
+                const mat = new THREE.MeshPhongMaterial({ vertexColors: true, side: THREE.DoubleSide, transparent: true, opacity: 0.85, shininess: 30 });
+                const mesh = new THREE.Mesh(geom, mat);
+                this.scene.add(mesh);
+                
+                const wfMat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.3 });
+                const wireframe = new THREE.LineSegments(new THREE.WireframeGeometry(geom), wfMat);
+                wireframe.visible = this.showWireframe;
+                this.scene.add(wireframe);
+                
+                return { mesh, wireframe, color };
+            }
+            
+            createSumSurface() {
+                const sf = ShapeFunctions[this.elementType];
+                const sumFunc = (xi, eta) => {
+                    let sum = 0;
+                    for (let i = 1; i <= sf.nodeCount; i++) sum += sf[`N${i}`](xi, eta);
+                    return sum;
+                };
+                
+                const res = 40;
+                const vertices = [], indices = [];
+                
+                for (let i = 0; i <= res; i++) {
+                    for (let j = 0; j <= res - i; j++) {
+                        const xi = i / res, eta = j / res;
+                        if (xi + eta <= 1.001) vertices.push(xi, sumFunc(xi, eta), eta);
+                    }
+                }
+                
+                let idx = 0;
+                for (let i = 0; i < res; i++) {
+                    const rowStart = idx, rowLen = res - i + 1, nextRow = rowStart + rowLen;
+                    for (let j = 0; j < rowLen - 1; j++) {
+                        indices.push(rowStart + j, rowStart + j + 1, nextRow + j);
+                        if (j < rowLen - 2) indices.push(rowStart + j + 1, nextRow + j + 1, nextRow + j);
+                    }
+                    idx = nextRow;
+                }
+                
+                const geom = new THREE.BufferGeometry();
+                geom.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+                geom.setIndex(indices);
+                geom.computeVertexNormals();
+                
+                const mat = new THREE.MeshPhongMaterial({ color: COLORS.sum, side: THREE.DoubleSide, transparent: true, opacity: 0.7 });
+                const mesh = new THREE.Mesh(geom, mat);
+                mesh.visible = this.showSum;
+                this.scene.add(mesh);
+                
+                const wfMat = new THREE.LineBasicMaterial({ color: COLORS.sum, transparent: true, opacity: 0.3 });
+                const wireframe = new THREE.LineSegments(new THREE.WireframeGeometry(geom), wfMat);
+                wireframe.visible = this.showSum && this.showWireframe;
+                this.scene.add(wireframe);
+                
+                this.sumSurface = { mesh, wireframe };
+            }
+            
+            createNodeMarkers() {
+                const sf = ShapeFunctions[this.elementType];
+                const colors = [COLORS.n1, COLORS.n2, COLORS.n3, COLORS.n4, COLORS.n5, COLORS.n6];
+                
+                sf.nodes.forEach((node, i) => {
+                    // Base sphere
+                    const baseG = new THREE.SphereGeometry(0.03, 16, 16);
+                    const baseM = new THREE.Mesh(baseG, new THREE.MeshPhongMaterial({ color: colors[i] }));
+                    baseM.position.set(node.xi, 0, node.eta);
+                    this.scene.add(baseM);
+                    this.nodeMarkers.push(baseM);
+                    
+                    // Peak sphere
+                    const N = sf[`N${i+1}`](node.xi, node.eta);
+                    const peakG = new THREE.SphereGeometry(0.03, 16, 16);
+                    const peakM = new THREE.Mesh(peakG, new THREE.MeshPhongMaterial({ color: colors[i] }));
+                    peakM.position.set(node.xi, N, node.eta);
+                    this.scene.add(peakM);
+                    this.nodeMarkers.push(peakM);
+                    
+                    // Dashed line
+                    const lineG = new THREE.BufferGeometry().setFromPoints([
+                        new THREE.Vector3(node.xi, 0, node.eta),
+                        new THREE.Vector3(node.xi, 1, node.eta)
+                    ]);
+                    const line = new THREE.Line(lineG, new THREE.LineDashedMaterial({ color: colors[i], dashSize: 0.05, gapSize: 0.03 }));
+                    line.computeLineDistances();
+                    this.scene.add(line);
+                    this.nodeMarkers.push(line);
+                });
+            }
+            
+            updateSurfaceVisibility() {
+                this.surfaces.forEach((s, i) => {
+                    s.mesh.visible = this.showAll || (i === this.selectedNode);
+                    s.mesh.material.opacity = this.showAll ? (i === this.selectedNode ? 0.9 : 0.6) : 0.85;
+                    if (s.wireframe) s.wireframe.visible = s.mesh.visible && this.showWireframe;
+                });
+                
+                if (this.sumSurface) {
+                    this.sumSurface.mesh.visible = this.showSum;
+                    if (this.sumSurface.wireframe) this.sumSurface.wireframe.visible = this.showSum && this.showWireframe;
+                }
+            }
+            
+            updateWireframe() {
+                this.surfaces.forEach(s => { if (s.wireframe) s.wireframe.visible = s.mesh.visible && this.showWireframe; });
+                if (this.sumSurface?.wireframe) this.sumSurface.wireframe.visible = this.showSum && this.showWireframe;
+            }
+            
+            resetView() {
+                this.camera.position.set(2, 2, 2);
+                this.controls.target.set(0.5, 0.3, 0.25);
+                this.controls.update();
+                
+                this.elementType = 'linear';
+                this.selectedNode = 0;
+                this.showAll = true;
+                this.showSum = false;
+                this.showWireframe = false;
+                
+                document.querySelectorAll('#element-type-group .btn').forEach(b => b.classList.toggle('active', b.dataset.type === 'linear'));
+                document.getElementById('show-all').checked = true;
+                document.getElementById('show-sum').checked = false;
+                document.getElementById('show-wireframe').checked = false;
+                document.getElementById('legend-sum').style.display = 'none';
+                
+                this.updateNodeButtons();
+                this.createVisualization();
+                this.updateMetrics();
+                this.updateEquations();
+            }
+            
+            onWindowResize() {
+                this.width = this.container.clientWidth;
+                this.height = this.container.clientHeight;
+                this.camera.aspect = this.width / this.height;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(this.width, this.height);
+            }
+            
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                this.controls.update();
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            try {
+                const canvas = document.createElement('canvas');
+                if (!(window.WebGLRenderingContext && (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')))) {
+                    document.getElementById('three-container').innerHTML = '<p style="color:#dc2626;text-align:center;padding:40px;">WebGL not supported</p>';
+                    return;
+                }
+            } catch (e) {
+                return;
+            }
+            new ShapeFunctionVisualizer('three-container');
+        });
+        
+        // Callout notification system
+        function showCallout(message, type = 'info', duration = 3000) {
+            const callout = document.getElementById('callout');
+            callout.textContent = message;
+            callout.className = 'callout ' + type + ' show';
+            setTimeout(() => {
+                callout.classList.remove('show');
+            }, duration);
+        }
+    </script>
+</body>
+</html>

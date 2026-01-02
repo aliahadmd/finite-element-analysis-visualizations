@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>p-Refinement - FEA Mesh Review</title>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        :root {
+            --color-primary: #2563eb;
+            --color-secondary: #7c3aed;
+            --color-accent: #059669;
+            --color-warning: #d97706;
+            --color-error: #dc2626;
+            --color-background: #f8fafc;
+            --color-surface: #ffffff;
+            --color-text: #1e293b;
+            --color-text-light: #64748b;
+            --color-grid: #e2e8f0;
+            --color-node: #1e40af;
+            --color-element: #3b82f6;
+            --color-element-fill: rgba(59, 130, 246, 0.1);
+            --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --font-mono: 'Consolas', 'Monaco', monospace;
+            --sidebar-width: 220px;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: var(--font-family);
+            background-color: var(--color-background);
+            color: var(--color-text);
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--color-surface);
+            border-right: 1px solid var(--color-grid);
+            padding: 16px 0;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+        
+        .sidebar-header {
+            padding: 0 16px 12px;
+            border-bottom: 1px solid var(--color-grid);
+            margin-bottom: 12px;
+        }
+        
+        .sidebar-header h1 { font-size: 1rem; color: var(--color-primary); }
+        
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            text-decoration: none;
+            color: var(--color-text-light);
+            font-size: 0.8rem;
+            transition: all 0.15s;
+        }
+        
+        .nav-link:hover { background-color: var(--color-background); color: var(--color-primary); }
+        .nav-link.active { background-color: rgba(37, 99, 235, 0.1); color: var(--color-primary); font-weight: 500; }
+        
+        .nav-num {
+            width: 20px; height: 20px;
+            background-color: var(--color-grid);
+            border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.7rem; font-weight: 600;
+        }
+        
+        .nav-link:hover .nav-num, .nav-link.active .nav-num {
+            background-color: var(--color-primary); color: white;
+        }
+        
+        /* Main */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            flex: 1;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        .viz-container {
+            background-color: var(--color-surface);
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .viz-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--color-grid);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(to right, var(--color-surface), var(--color-background));
+        }
+        
+        .viz-title { font-size: 1.1rem; font-weight: 600; color: var(--color-text); }
+        .viz-subtitle { font-size: 0.75rem; color: var(--color-text-light); }
+        
+        .viz-body {
+            flex: 1;
+            display: flex;
+            min-height: 0;
+        }
+        
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            min-width: 0;
+        }
+        
+        #canvas {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 8px;
+        }
+        
+        /* Info panel */
+        .info-panel {
+            width: 280px;
+            background-color: var(--color-background);
+            border-left: 1px solid var(--color-grid);
+            padding: 12px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+        
+        .info-section { margin-bottom: 12px; }
+        
+        .info-section-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--color-text-light);
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+        
+        .control-group { margin-bottom: 10px; }
+        .control-label { font-size: 0.75rem; color: var(--color-text); margin-bottom: 4px; display: block; }
+        
+        .btn-group { display: flex; gap: 4px; }
+        
+        .btn {
+            padding: 6px 10px;
+            font-size: 0.75rem;
+            border: 1px solid var(--color-grid);
+            background: var(--color-surface);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+            flex: 1;
+        }
+        
+        .btn:hover { border-color: var(--color-primary); }
+        .btn.active { background: var(--color-primary); color: white; border-color: var(--color-primary); }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: var(--color-grid);
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px; height: 14px;
+            border-radius: 50%;
+            background: var(--color-primary);
+            cursor: pointer;
+        }
+        
+        .slider-value {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: var(--color-primary);
+        }
+        
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+        
+        .checkbox-row input { width: 14px; height: 14px; accent-color: var(--color-primary); }
+        .checkbox-row label { font-size: 0.75rem; color: var(--color-text); }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+        }
+        
+        .metric {
+            background: var(--color-surface);
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+        }
+        
+        .metric-value {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--color-primary);
+            font-family: var(--font-mono);
+        }
+        
+        .metric-label {
+            font-size: 0.65rem;
+            color: var(--color-text-light);
+            text-transform: uppercase;
+        }
+        
+        .btn-reset {
+            width: 100%;
+            padding: 8px;
+            background: var(--color-primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            margin-top: 8px;
+        }
+        
+        .btn-reset:hover { background: #1d4ed8; }
+        
+        .color-legend {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-top: 8px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.7rem;
+        }
+        
+        .legend-color {
+            width: 16px;
+            height: 12px;
+            border-radius: 2px;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 3px;
+            border-radius: 1px;
+        }
+        
+        .description-box {
+            background: var(--color-surface);
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 0.72rem;
+            line-height: 1.5;
+            color: var(--color-text);
+        }
+        
+        .description-box p { margin-bottom: 6px; }
+        .description-box p:last-child { margin-bottom: 0; }
+        
+        .p-selector {
+            display: flex;
+            gap: 6px;
+            margin-top: 4px;
+        }
+        
+        .p-btn {
+            flex: 1;
+            padding: 10px 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border: 2px solid var(--color-grid);
+            background: var(--color-surface);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-align: center;
+        }
+        
+        .p-btn:hover { border-color: var(--color-primary); }
+        .p-btn.active { 
+            background: var(--color-primary); 
+            color: white; 
+            border-color: var(--color-primary); 
+        }
+        
+        .p-btn span {
+            display: block;
+            font-size: 0.65rem;
+            font-weight: 400;
+            opacity: 0.8;
+            margin-top: 2px;
+        }
+        
+        .formula-box {
+            background: var(--color-surface);
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+        
+        .node-info {
+            background: var(--color-surface);
+            border-radius: 6px;
+            padding: 8px;
+            margin-top: 6px;
+        }
+        
+        .node-info-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.72rem;
+            padding: 2px 0;
+        }
+        
+        .node-info-label { color: var(--color-text-light); }
+        .node-info-value { font-weight: 600; font-family: var(--font-mono); }
+        
+        @media (max-width: 900px) {
+            .sidebar { display: none; }
+            .main-content { margin-left: 0; }
+        }
+        
+        /* Callout notification */
+        .callout {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(30, 41, 59, 0.95);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.3s ease;
+            max-width: 400px;
+            text-align: center;
+        }
+        
+        .callout.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+        
+        .callout.info { border-left: 4px solid var(--color-primary); }
+        .callout.success { border-left: 4px solid var(--color-accent); }
+        
+        @media (max-width: 700px) {
+            .viz-body { flex-direction: column; }
+            .info-panel { width: 100%; border-left: none; border-top: 1px solid var(--color-grid); }
+        }
+    </style>
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header"><h1>FEA Mesh Review</h1></div>
+        <a href="index.html" class="nav-link"><span class="nav-num">⌂</span> Home</a>
+        <a href="01-domain-discretization.html" class="nav-link"><span class="nav-num">1</span> Domain Discretization</a>
+        <a href="02-shape-functions.html" class="nav-link"><span class="nav-num">2</span> Shape Functions</a>
+        <a href="03-mesh-types-comparison.html" class="nav-link"><span class="nav-num">3</span> Mesh Types</a>
+        <a href="04-h-refinement.html" class="nav-link"><span class="nav-num">4</span> h-Refinement</a>
+        <a href="05-p-refinement.html" class="nav-link active"><span class="nav-num">5</span> p-Refinement</a>
+        <a href="06-convergence-plot.html" class="nav-link"><span class="nav-num">6</span> Convergence</a>
+        <a href="07-element-quality.html" class="nav-link"><span class="nav-num">7</span> Element Quality</a>
+    </nav>
+    
+    <main class="main-content">
+        <div class="viz-container">
+            <div class="viz-header">
+                <div>
+                    <div class="viz-title">p-Refinement</div>
+                    <div class="viz-subtitle">Section 5 · Increasing polynomial degree for improved approximation</div>
+                </div>
+            </div>
+            
+            <div class="viz-body">
+                <div class="canvas-container">
+                    <canvas id="canvas" width="700" height="550"></canvas>
+                </div>
+                
+                <div class="info-panel">
+                    <div class="info-section">
+                        <div class="info-section-title">Description</div>
+                        <div class="description-box">
+                            <p><strong>p-refinement</strong> increases the polynomial degree (p) of shape functions within elements to improve accuracy without changing mesh size.</p>
+                            <p>Higher p values add internal nodes and enable better approximation of complex functions within each element.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Polynomial Degree (p)</div>
+                        <div class="p-selector" id="p-selector">
+                            <button class="p-btn active" data-p="1">p=1<span>Linear</span></button>
+                            <button class="p-btn" data-p="2">p=2<span>Quadratic</span></button>
+                            <button class="p-btn" data-p="3">p=3<span>Cubic</span></button>
+                            <button class="p-btn" data-p="4">p=4<span>Quartic</span></button>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Target Function</div>
+                        <div class="formula-box" id="formula-box">
+                            \( f(x) = \sin(2\pi x) \)
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Display Options</div>
+                        <div class="checkbox-row">
+                            <input type="checkbox" id="show-target" checked>
+                            <label for="show-target">Show Target Function</label>
+                        </div>
+                        <div class="checkbox-row">
+                            <input type="checkbox" id="show-approx" checked>
+                            <label for="show-approx">Show Approximation</label>
+                        </div>
+                        <div class="checkbox-row">
+                            <input type="checkbox" id="show-nodes" checked>
+                            <label for="show-nodes">Show Nodes</label>
+                        </div>
+                        <div class="checkbox-row">
+                            <input type="checkbox" id="show-error">
+                            <label for="show-error">Show Error Region</label>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Metrics</div>
+                        <div class="metrics-grid">
+                            <div class="metric">
+                                <div class="metric-value" id="dof-count">2</div>
+                                <div class="metric-label">DOF (1D)</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-value" id="dof-2d">4</div>
+                                <div class="metric-label">DOF (2D Quad)</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-value" id="node-count">2</div>
+                                <div class="metric-label">Nodes (1D)</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-value" id="max-error">0.000</div>
+                                <div class="metric-label">Max Error</div>
+                            </div>
+                        </div>
+                        <div class="node-info">
+                            <div class="node-info-row">
+                                <span class="node-info-label">Polynomial Terms:</span>
+                                <span class="node-info-value" id="poly-terms">x⁰, x¹</span>
+                            </div>
+                            <div class="node-info-row">
+                                <span class="node-info-label">Basis Functions:</span>
+                                <span class="node-info-value" id="basis-count">2</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-section-title">Legend</div>
+                        <div class="color-legend">
+                            <div class="legend-item">
+                                <div class="legend-line" style="background: #7c3aed;"></div>
+                                <span>Target function f(x)</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-line" style="background: #059669;"></div>
+                                <span>Interpolated approximation</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: rgba(220, 38, 38, 0.2);"></div>
+                                <span>Error region</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #1e40af; width: 10px; height: 10px; border-radius: 50%;"></div>
+                                <span>Interpolation nodes</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button class="btn-reset" id="reset-btn" title="Reset to linear (p=1) polynomial">Reset View</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Callout notification element -->
+        <div class="callout" id="callout"></div>
+    </main>
+    
+    <script>
+        const COLORS = {
+            primary: '#2563eb',
+            secondary: '#7c3aed',
+            accent: '#059669',
+            warning: '#d97706',
+            error: '#dc2626',
+            node: '#1e40af',
+            element: '#3b82f6',
+            elementFill: 'rgba(59, 130, 246, 0.1)',
+            grid: '#e2e8f0',
+            textLight: '#64748b',
+            target: '#7c3aed',
+            approx: '#059669',
+            errorFill: 'rgba(220, 38, 38, 0.15)'
+        };
+        
+        class PRefinementDemo {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.width = this.canvas.width;
+                this.height = this.canvas.height;
+                
+                // Layout parameters
+                this.padding = { top: 60, right: 40, bottom: 80, left: 60 };
+                this.plotWidth = this.width - this.padding.left - this.padding.right;
+                this.plotHeight = this.height - this.padding.top - this.padding.bottom;
+                
+                // Element domain [0, 1]
+                this.xMin = 0;
+                this.xMax = 1;
+                this.yMin = -1.2;
+                this.yMax = 1.2;
+                
+                // State
+                this.polynomialDegree = 1;
+                this.showTarget = true;
+                this.showApprox = true;
+                this.showNodes = true;
+                this.showError = false;
+                
+                // Target function: sin(2*pi*x)
+                this.targetFunction = (x) => Math.sin(2 * Math.PI * x);
+                
+                this.setupEventListeners();
+                this.updateMetrics();
+                this.render();
+            }
+            
+            setupEventListeners() {
+                // Polynomial degree selector
+                document.getElementById('p-selector').addEventListener('click', (e) => {
+                    const btn = e.target.closest('.p-btn');
+                    if (btn) {
+                        document.querySelectorAll('.p-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        const prevP = this.polynomialDegree;
+                        this.polynomialDegree = parseInt(btn.dataset.p);
+                        this.updateMetrics();
+                        this.render();
+                        // Show callout for polynomial degree change
+                        const maxError = this.computeMaxError();
+                        if (this.polynomialDegree > prevP) {
+                            showCallout(`p=${this.polynomialDegree}: Max error reduced to ${maxError.toFixed(4)} with ${this.polynomialDegree + 1} nodes`, 'success');
+                        } else {
+                            showCallout(`p=${this.polynomialDegree}: ${this.polynomialDegree + 1} nodes, max error = ${maxError.toFixed(4)}`, 'info');
+                        }
+                    }
+                });
+                
+                // Display options
+                document.getElementById('show-target').addEventListener('change', (e) => {
+                    this.showTarget = e.target.checked;
+                    this.render();
+                });
+                
+                document.getElementById('show-approx').addEventListener('change', (e) => {
+                    this.showApprox = e.target.checked;
+                    this.render();
+                });
+                
+                document.getElementById('show-nodes').addEventListener('change', (e) => {
+                    this.showNodes = e.target.checked;
+                    this.render();
+                });
+                
+                document.getElementById('show-error').addEventListener('change', (e) => {
+                    this.showError = e.target.checked;
+                    this.render();
+                    if (this.showError) {
+                        showCallout('Red region shows the difference between target and approximation', 'info');
+                    }
+                });
+                
+                // Reset button
+                document.getElementById('reset-btn').addEventListener('click', () => {
+                    this.reset();
+                });
+            }
+            
+            // Get Gauss-Lobatto nodes for polynomial degree p
+            // These are optimal for interpolation and include endpoints
+            getNodes(p) {
+                const n = p + 1; // Number of nodes
+                const nodes = [];
+                
+                if (n === 2) {
+                    // Linear: endpoints only
+                    nodes.push(0, 1);
+                } else if (n === 3) {
+                    // Quadratic: endpoints + midpoint
+                    nodes.push(0, 0.5, 1);
+                } else if (n === 4) {
+                    // Cubic: Gauss-Lobatto points
+                    nodes.push(0, 0.5 - Math.sqrt(5)/10, 0.5 + Math.sqrt(5)/10, 1);
+                } else if (n === 5) {
+                    // Quartic: Gauss-Lobatto points
+                    nodes.push(0, 0.5 - Math.sqrt(21)/14, 0.5, 0.5 + Math.sqrt(21)/14, 1);
+                }
+                
+                return nodes;
+            }
+            
+            // Lagrange basis polynomial L_i(x) for nodes
+            lagrangeBasis(i, x, nodes) {
+                let result = 1;
+                const xi = nodes[i];
+                for (let j = 0; j < nodes.length; j++) {
+                    if (j !== i) {
+                        result *= (x - nodes[j]) / (xi - nodes[j]);
+                    }
+                }
+                return result;
+            }
+            
+            // Interpolate using Lagrange polynomials
+            interpolate(x, nodes, values) {
+                let result = 0;
+                for (let i = 0; i < nodes.length; i++) {
+                    result += values[i] * this.lagrangeBasis(i, x, nodes);
+                }
+                return result;
+            }
+            
+            // Get interpolated approximation at x
+            getApproximation(x) {
+                const nodes = this.getNodes(this.polynomialDegree);
+                const values = nodes.map(xi => this.targetFunction(xi));
+                return this.interpolate(x, nodes, values);
+            }
+            
+            // Compute maximum error
+            computeMaxError() {
+                let maxError = 0;
+                const steps = 200;
+                for (let i = 0; i <= steps; i++) {
+                    const x = i / steps;
+                    const target = this.targetFunction(x);
+                    const approx = this.getApproximation(x);
+                    const error = Math.abs(target - approx);
+                    if (error > maxError) maxError = error;
+                }
+                return maxError;
+            }
+            
+            updateMetrics() {
+                const p = this.polynomialDegree;
+                const nodes1D = p + 1;
+                const dof2D = (p + 1) * (p + 1);
+                
+                document.getElementById('dof-count').textContent = nodes1D;
+                document.getElementById('dof-2d').textContent = dof2D;
+                document.getElementById('node-count').textContent = nodes1D;
+                document.getElementById('basis-count').textContent = nodes1D;
+                
+                // Polynomial terms
+                const terms = [];
+                for (let i = 0; i <= p; i++) {
+                    if (i === 0) terms.push('1');
+                    else if (i === 1) terms.push('x');
+                    else terms.push(`x${this.superscript(i)}`);
+                }
+                document.getElementById('poly-terms').textContent = terms.join(', ');
+                
+                // Max error
+                const maxError = this.computeMaxError();
+                document.getElementById('max-error').textContent = maxError.toFixed(3);
+            }
+            
+            superscript(n) {
+                const superscripts = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
+                return String(n).split('').map(d => superscripts[parseInt(d)]).join('');
+            }
+            
+            reset() {
+                this.polynomialDegree = 1;
+                this.showTarget = true;
+                this.showApprox = true;
+                this.showNodes = true;
+                this.showError = false;
+                
+                // Update UI
+                document.querySelectorAll('.p-btn').forEach(b => b.classList.remove('active'));
+                document.querySelector('.p-btn[data-p="1"]').classList.add('active');
+                document.getElementById('show-target').checked = true;
+                document.getElementById('show-approx').checked = true;
+                document.getElementById('show-nodes').checked = true;
+                document.getElementById('show-error').checked = false;
+                
+                this.updateMetrics();
+                this.render();
+            }
+            
+            // Coordinate transformations
+            xToCanvas(x) {
+                return this.padding.left + ((x - this.xMin) / (this.xMax - this.xMin)) * this.plotWidth;
+            }
+            
+            yToCanvas(y) {
+                return this.padding.top + ((this.yMax - y) / (this.yMax - this.yMin)) * this.plotHeight;
+            }
+            
+            render() {
+                this.ctx.clearRect(0, 0, this.width, this.height);
+                this.drawBackground();
+                this.drawAxes();
+                this.drawElement();
+                
+                if (this.showError && this.showTarget && this.showApprox) {
+                    this.drawErrorRegion();
+                }
+                
+                if (this.showTarget) {
+                    this.drawTargetFunction();
+                }
+                
+                if (this.showApprox) {
+                    this.drawApproximation();
+                }
+                
+                if (this.showNodes) {
+                    this.drawNodes();
+                }
+                
+                this.drawTitle();
+            }
+            
+            drawBackground() {
+                // Light grid
+                this.ctx.strokeStyle = COLORS.grid;
+                this.ctx.lineWidth = 0.5;
+                
+                // Vertical grid lines
+                for (let x = 0; x <= 1; x += 0.1) {
+                    const cx = this.xToCanvas(x);
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(cx, this.padding.top);
+                    this.ctx.lineTo(cx, this.height - this.padding.bottom);
+                    this.ctx.stroke();
+                }
+                
+                // Horizontal grid lines
+                for (let y = -1; y <= 1; y += 0.5) {
+                    const cy = this.yToCanvas(y);
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(this.padding.left, cy);
+                    this.ctx.lineTo(this.width - this.padding.right, cy);
+                    this.ctx.stroke();
+                }
+            }
+            
+            drawAxes() {
+                this.ctx.strokeStyle = COLORS.textLight;
+                this.ctx.lineWidth = 1.5;
+                
+                // X-axis
+                const y0 = this.yToCanvas(0);
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.padding.left, y0);
+                this.ctx.lineTo(this.width - this.padding.right, y0);
+                this.ctx.stroke();
+                
+                // Y-axis
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.padding.left, this.padding.top);
+                this.ctx.lineTo(this.padding.left, this.height - this.padding.bottom);
+                this.ctx.stroke();
+                
+                // Axis labels
+                this.ctx.fillStyle = COLORS.textLight;
+                this.ctx.font = '12px sans-serif';
+                this.ctx.textAlign = 'center';
+                
+                // X-axis labels
+                for (let x = 0; x <= 1; x += 0.2) {
+                    const cx = this.xToCanvas(x);
+                    this.ctx.fillText(x.toFixed(1), cx, this.height - this.padding.bottom + 20);
+                }
+                this.ctx.fillText('x (element coordinate)', this.width / 2, this.height - 20);
+                
+                // Y-axis labels
+                this.ctx.textAlign = 'right';
+                for (let y = -1; y <= 1; y += 0.5) {
+                    const cy = this.yToCanvas(y);
+                    this.ctx.fillText(y.toFixed(1), this.padding.left - 10, cy + 4);
+                }
+                
+                // Y-axis title
+                this.ctx.save();
+                this.ctx.translate(20, this.height / 2);
+                this.ctx.rotate(-Math.PI / 2);
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText('f(x)', 0, 0);
+                this.ctx.restore();
+            }
+            
+            drawElement() {
+                // Draw the 1D element as a thick line at the bottom
+                const y = this.height - this.padding.bottom + 45;
+                const x0 = this.xToCanvas(0);
+                const x1 = this.xToCanvas(1);
+                
+                // Element background
+                this.ctx.fillStyle = COLORS.elementFill;
+                this.ctx.fillRect(x0, y - 8, x1 - x0, 16);
+                
+                // Element border
+                this.ctx.strokeStyle = COLORS.element;
+                this.ctx.lineWidth = 3;
+                this.ctx.beginPath();
+                this.ctx.moveTo(x0, y);
+                this.ctx.lineTo(x1, y);
+                this.ctx.stroke();
+                
+                // End markers
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.moveTo(x0, y - 8);
+                this.ctx.lineTo(x0, y + 8);
+                this.ctx.moveTo(x1, y - 8);
+                this.ctx.lineTo(x1, y + 8);
+                this.ctx.stroke();
+                
+                // Label
+                this.ctx.fillStyle = COLORS.textLight;
+                this.ctx.font = '11px sans-serif';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText('1D Element [0, 1]', (x0 + x1) / 2, y + 25);
+                
+                // Draw node positions on element
+                if (this.showNodes) {
+                    const nodes = this.getNodes(this.polynomialDegree);
+                    nodes.forEach((xi, i) => {
+                        const cx = this.xToCanvas(xi);
+                        this.ctx.beginPath();
+                        this.ctx.arc(cx, y, 5, 0, Math.PI * 2);
+                        this.ctx.fillStyle = COLORS.node;
+                        this.ctx.fill();
+                    });
+                }
+            }
+            
+            drawTargetFunction() {
+                this.ctx.strokeStyle = COLORS.target;
+                this.ctx.lineWidth = 2.5;
+                this.ctx.setLineDash([6, 4]);
+                this.ctx.beginPath();
+                
+                const steps = 200;
+                for (let i = 0; i <= steps; i++) {
+                    const x = i / steps;
+                    const y = this.targetFunction(x);
+                    const cx = this.xToCanvas(x);
+                    const cy = this.yToCanvas(y);
+                    
+                    if (i === 0) {
+                        this.ctx.moveTo(cx, cy);
+                    } else {
+                        this.ctx.lineTo(cx, cy);
+                    }
+                }
+                
+                this.ctx.stroke();
+                this.ctx.setLineDash([]);
+            }
+            
+            drawApproximation() {
+                this.ctx.strokeStyle = COLORS.approx;
+                this.ctx.lineWidth = 2.5;
+                this.ctx.beginPath();
+                
+                const steps = 200;
+                for (let i = 0; i <= steps; i++) {
+                    const x = i / steps;
+                    const y = this.getApproximation(x);
+                    const cx = this.xToCanvas(x);
+                    const cy = this.yToCanvas(y);
+                    
+                    if (i === 0) {
+                        this.ctx.moveTo(cx, cy);
+                    } else {
+                        this.ctx.lineTo(cx, cy);
+                    }
+                }
+                
+                this.ctx.stroke();
+            }
+            
+            drawErrorRegion() {
+                this.ctx.fillStyle = COLORS.errorFill;
+                this.ctx.beginPath();
+                
+                const steps = 200;
+                
+                // Draw upper boundary (max of target and approx)
+                for (let i = 0; i <= steps; i++) {
+                    const x = i / steps;
+                    const target = this.targetFunction(x);
+                    const approx = this.getApproximation(x);
+                    const y = Math.max(target, approx);
+                    const cx = this.xToCanvas(x);
+                    const cy = this.yToCanvas(y);
+                    
+                    if (i === 0) {
+                        this.ctx.moveTo(cx, cy);
+                    } else {
+                        this.ctx.lineTo(cx, cy);
+                    }
+                }
+                
+                // Draw lower boundary (min of target and approx) in reverse
+                for (let i = steps; i >= 0; i--) {
+                    const x = i / steps;
+                    const target = this.targetFunction(x);
+                    const approx = this.getApproximation(x);
+                    const y = Math.min(target, approx);
+                    const cx = this.xToCanvas(x);
+                    const cy = this.yToCanvas(y);
+                    this.ctx.lineTo(cx, cy);
+                }
+                
+                this.ctx.closePath();
+                this.ctx.fill();
+            }
+            
+            drawNodes() {
+                const nodes = this.getNodes(this.polynomialDegree);
+                const values = nodes.map(xi => this.targetFunction(xi));
+                
+                // Draw nodes on the curve
+                nodes.forEach((xi, i) => {
+                    const cx = this.xToCanvas(xi);
+                    const cy = this.yToCanvas(values[i]);
+                    
+                    // Outer ring
+                    this.ctx.beginPath();
+                    this.ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+                    this.ctx.fillStyle = 'white';
+                    this.ctx.fill();
+                    this.ctx.strokeStyle = COLORS.node;
+                    this.ctx.lineWidth = 2;
+                    this.ctx.stroke();
+                    
+                    // Inner dot
+                    this.ctx.beginPath();
+                    this.ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+                    this.ctx.fillStyle = COLORS.node;
+                    this.ctx.fill();
+                    
+                    // Node label
+                    this.ctx.fillStyle = COLORS.textLight;
+                    this.ctx.font = '10px sans-serif';
+                    this.ctx.textAlign = 'center';
+                    const labelY = cy < this.yToCanvas(0) ? cy - 15 : cy + 18;
+                    this.ctx.fillText(`ξ${this.subscript(i+1)}`, cx, labelY);
+                });
+            }
+            
+            subscript(n) {
+                const subscripts = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉'];
+                return String(n).split('').map(d => subscripts[parseInt(d)]).join('');
+            }
+            
+            drawTitle() {
+                const p = this.polynomialDegree;
+                const names = ['', 'Linear', 'Quadratic', 'Cubic', 'Quartic'];
+                
+                this.ctx.fillStyle = COLORS.textLight;
+                this.ctx.font = '14px sans-serif';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(
+                    `p = ${p} (${names[p]}) — ${p + 1} nodes, polynomial degree ${p}`,
+                    this.width / 2,
+                    30
+                );
+            }
+        }
+        
+        // Initialize on DOM load
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('canvas');
+            if (!canvas.getContext) {
+                document.querySelector('.canvas-container').innerHTML = 
+                    '<p style="color:#dc2626;padding:40px;">Canvas not supported</p>';
+                return;
+            }
+            
+            // Re-render MathJax
+            if (window.MathJax) {
+                MathJax.typesetPromise();
+            }
+            
+            new PRefinementDemo('canvas');
+        });
+        
+        // Callout notification system
+        function showCallout(message, type = 'info', duration = 3000) {
+            const callout = document.getElementById('callout');
+            callout.textContent = message;
+            callout.className = 'callout ' + type + ' show';
+            setTimeout(() => {
+                callout.classList.remove('show');
+            }, duration);
+        }
+    </script>
+</body>
+</html>
