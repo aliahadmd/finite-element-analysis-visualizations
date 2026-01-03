@@ -376,6 +376,23 @@
             .canvas-split { flex-direction: column; }
             .info-panel { width: 100%; border-left: none; border-top: 1px solid var(--color-grid); }
         }
+        
+        .footer {
+            padding: 16px;
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--color-text-light);
+            border-top: 1px solid var(--color-grid);
+            background: var(--color-surface);
+        }
+        
+        .footer a {
+            color: var(--color-primary);
+            text-decoration: none;
+            margin: 0 6px;
+        }
+        
+        .footer a:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -544,6 +561,12 @@
         
         <!-- Callout notification element -->
         <div class="callout" id="callout"></div>
+        
+        <footer class="footer">
+            © 2026 Ali Ahad. All rights reserved. 
+            <a href="https://aliahad.com" target="_blank">Profile</a> | 
+            <a href="https://resume.aliahad.com" target="_blank">Resume</a>
+        </footer>
     </main>
     
     <script>

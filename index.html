@@ -184,6 +184,29 @@
             .sidebar { display: none; }
             .main-content { margin-left: 0; }
         }
+        
+        .footer {
+            margin-top: 48px;
+            padding: 24px 0;
+            border-top: 1px solid var(--color-grid);
+            text-align: center;
+            font-size: 0.8rem;
+            color: var(--color-text-light);
+        }
+        
+        .footer a {
+            color: var(--color-primary);
+            text-decoration: none;
+            margin: 0 8px;
+        }
+        
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        
+        .footer-links {
+            margin-top: 8px;
+        }
     </style>
 </head>
 <body>
@@ -294,6 +317,15 @@
                     <p>Drag nodes to see real-time quality metrics: aspect ratio, skewness, Jacobian.</p>
                 </a>
             </div>
+            
+            <footer class="footer">
+                <div>© 2026 Ali Ahad. All rights reserved.</div>
+                <div class="footer-links">
+                    <a href="https://aliahad.com" target="_blank">Check my profile</a>
+                    <span>|</span>
+                    <a href="https://resume.aliahad.com" target="_blank">Resume</a>
+                </div>
+            </footer>
         </div>
     </main>
 </body>
